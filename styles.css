@@ -43,6 +43,8 @@ body {
     radial-gradient(circle at top left, rgba(226, 176, 94, 0.22), transparent 34%),
     radial-gradient(circle at bottom right, rgba(84, 145, 152, 0.16), transparent 36%),
     linear-gradient(180deg, #fbf5ee 0%, #f4eadf 50%, #f8f1e8 100%);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -66,6 +68,8 @@ button {
 input,
 textarea {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--border);
   outline: none;
   color: var(--ink);
@@ -145,6 +149,7 @@ button:disabled {
   position: relative;
   z-index: 1;
   width: min(100%, 540px);
+  min-width: 0;
   min-height: 100vh;
   margin: 0 auto;
   padding: 20px 16px calc(var(--nav-height) + 28px);
@@ -155,7 +160,12 @@ button:disabled {
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
+  min-width: 0;
   margin-bottom: 18px;
+}
+
+.topbar > div {
+  min-width: 0;
 }
 
 .topbar-meta {
@@ -166,6 +176,10 @@ button:disabled {
 
 .topbar-slot {
   flex-shrink: 0;
+  max-width: min(46vw, 180px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .eyebrow {
@@ -214,11 +228,15 @@ p {
 
 .main-content {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
 }
 
 .screen {
   display: none;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+  min-width: 0;
   animation: fade-up 360ms ease both;
 }
 
@@ -230,6 +248,7 @@ p {
 .hero-card {
   position: relative;
   overflow: hidden;
+  min-width: 0;
   background: var(--surface);
   border: 1px solid rgba(255, 255, 255, 0.58);
   backdrop-filter: blur(18px);
@@ -284,12 +303,14 @@ p {
   margin-top: 16px;
   padding: 16px;
   border-radius: 22px;
+  min-width: 0;
   background: rgba(255, 255, 255, 0.48);
   border: 1px solid rgba(78, 62, 48, 0.06);
 }
 
 .field-header {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   margin-bottom: 10px;
 }
@@ -302,7 +323,9 @@ p {
 
 .form-block {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  min-width: 0;
   margin-top: 16px;
 }
 
@@ -313,6 +336,7 @@ p {
 
 .input-shell {
   margin-top: 10px;
+  min-width: 0;
 }
 
 .range-wrap {
@@ -418,6 +442,7 @@ p {
 .entry-strip {
   display: flex;
   gap: 10px;
+  max-width: 100%;
   overflow-x: auto;
   padding: 2px 2px 4px;
   scrollbar-width: none;
@@ -513,6 +538,7 @@ p {
   flex-wrap: nowrap;
   gap: 8px;
   margin-top: 10px;
+  max-width: 100%;
   overflow-x: auto;
   padding: 2px 2px 4px;
   scrollbar-width: none;
@@ -560,8 +586,10 @@ p {
 
 .reference-picker {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 16px;
+  min-width: 0;
   border-radius: 22px;
   border: 1px solid rgba(73, 57, 45, 0.08);
   background: rgba(255, 255, 255, 0.62);
@@ -719,7 +747,8 @@ p {
 }
 
 #screen-guided .card {
-  overflow: visible;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .stepper {
@@ -727,6 +756,7 @@ p {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 18px;
+  max-width: 100%;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   touch-action: auto;
@@ -759,25 +789,30 @@ p {
 
 .guided-content {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   min-width: 0;
 }
 
 .step-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   min-width: 0;
 }
 
 .step-copy {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  min-width: 0;
 }
 
 .choice-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
   gap: 10px;
+  min-width: 0;
 }
 
 .choice-chip {
@@ -786,6 +821,7 @@ p {
   justify-content: center;
   gap: 10px;
   width: 100%;
+  min-width: 0;
   min-height: 42px;
   padding: 0 14px;
   border-radius: 999px;
@@ -817,6 +853,7 @@ p {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
   margin-top: 18px;
 }
 
@@ -1424,7 +1461,19 @@ p {
   }
 }
 
-@media (max-width: 460px) {
+@media (max-width: 560px) {
+  .app-shell {
+    padding: 16px 12px calc(var(--nav-height) + 20px);
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .hero-card {
+    padding: 18px;
+  }
+
   .topbar,
   .section-heading,
   .record-header,
@@ -1442,9 +1491,49 @@ p {
     grid-template-columns: 1fr;
   }
 
+  h1 {
+    font-size: 28px;
+  }
+
+  h2 {
+    font-size: 24px;
+  }
+
+  h3 {
+    font-size: 18px;
+  }
+
+  input[type="text"],
+  input[type="date"],
+  input[type="time"],
+  textarea,
+  select {
+    font-size: 15px;
+    padding: 12px 14px;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    font-size: 14px;
+  }
+
+  .field-panel,
+  .reference-picker,
+  .guided-intro {
+    padding: 14px;
+  }
+
+  .choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .choice-chip {
+    padding: 0 10px;
+  }
+
   .stepper {
     grid-auto-flow: column;
-    grid-auto-columns: minmax(92px, 1fr);
+    grid-auto-columns: minmax(78px, 1fr);
     overflow-x: auto;
   }
 

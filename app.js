@@ -285,6 +285,8 @@
   function renderQuickInputs() {
     els.quickEmotionInput.value = ui.quick.emotionQuery;
     els.quickSomaticInput.value = ui.quick.somaticQuery;
+    els.quickEmotionInput.placeholder = getEmotionInputPlaceholder();
+    els.quickSomaticInput.placeholder = getSomaticInputPlaceholder();
     if (els.quickIntensity) {
       els.quickIntensity.value = String(ui.quick.intensity);
     }
@@ -302,6 +304,22 @@
     if (els.quickIntensityLabel) {
       els.quickIntensityLabel.textContent = DATA.intensityLabels[ui.quick.intensity];
     }
+  }
+
+  function useCompactPlaceholders() {
+    return window.matchMedia("(max-width: 560px)").matches;
+  }
+
+  function getEmotionInputPlaceholder() {
+    return useCompactPlaceholders()
+      ? "如：伤心、麻木、安心、委屈"
+      : "请输入情绪，如：伤心、麻木、安心、委屈";
+  }
+
+  function getSomaticInputPlaceholder() {
+    return useCompactPlaceholders()
+      ? "如：胸口发紧、头皮发麻、肩膀很紧"
+      : "请输入躯体感受，如：胸口发紧、头皮发麻、肩膀很紧";
   }
 
   function renderQuickSelectedStrips() {
@@ -562,7 +580,7 @@
               id="guided-somatic-input"
               type="text"
               autocomplete="off"
-              placeholder="请输入躯体感受，如：胸口发紧、头皮发麻、肩膀很紧"
+              placeholder="${escapeHtml(getSomaticInputPlaceholder())}"
               value="${escapeHtml(ui.guided.somaticQuery)}"
             >
           </div>
@@ -601,7 +619,7 @@
               id="guided-emotion-input"
               type="text"
               autocomplete="off"
-              placeholder="请输入情绪，如：伤心、麻木、安心、委屈"
+              placeholder="${escapeHtml(getEmotionInputPlaceholder())}"
               value="${escapeHtml(ui.guided.emotionQuery)}"
             >
           </div>
