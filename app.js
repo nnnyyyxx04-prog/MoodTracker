@@ -405,7 +405,7 @@
   function renderOtherTagSuggestions() {
     const project = getSelectedOtherProject(false);
     if (!project && !ui.other.projectQuery.trim()) {
-      els.otherTagSuggestions.innerHTML = `<div class="empty-inline">先选一个项目，再继续填写标签。</div>`;
+      els.otherTagSuggestions.innerHTML = "";
       return;
     }
 

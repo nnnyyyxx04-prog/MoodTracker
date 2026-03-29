@@ -424,7 +424,7 @@ p {
   flex-wrap: nowrap;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
-  touch-action: pan-x;
+  touch-action: auto;
   scroll-snap-type: x proximity;
 }
 
@@ -518,7 +518,7 @@ p {
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
-  touch-action: pan-x;
+  touch-action: auto;
   scroll-snap-type: x proximity;
 }
 
@@ -715,12 +715,11 @@ p {
 }
 
 .guided-intro .section-heading {
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
-.guided-intro .body-copy {
-  font-size: 14px;
-  line-height: 1.6;
+#screen-guided .card {
+  overflow: visible;
 }
 
 .stepper {
@@ -730,7 +729,7 @@ p {
   margin-bottom: 18px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
-  touch-action: pan-x;
+  touch-action: auto;
   scroll-snap-type: x proximity;
 }
 
@@ -761,11 +760,13 @@ p {
 .guided-content {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .step-card {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .step-copy {
