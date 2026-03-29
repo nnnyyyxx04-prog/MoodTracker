@@ -137,10 +137,12 @@
     els.quickEmotionSelected.addEventListener("click", onQuickSelectedClick);
     els.quickSomaticSelected.addEventListener("click", onQuickSelectedClick);
 
-    els.quickIntensity.addEventListener("input", (event) => {
-      ui.quick.intensity = Number(event.target.value);
-      renderQuickIntensityLabel();
-    });
+    if (els.quickIntensity) {
+      els.quickIntensity.addEventListener("input", (event) => {
+        ui.quick.intensity = Number(event.target.value);
+        renderQuickIntensityLabel();
+      });
+    }
 
     els.quickNote.addEventListener("input", (event) => {
       ui.quick.note = event.target.value;
@@ -283,7 +285,9 @@
   function renderQuickInputs() {
     els.quickEmotionInput.value = ui.quick.emotionQuery;
     els.quickSomaticInput.value = ui.quick.somaticQuery;
-    els.quickIntensity.value = String(ui.quick.intensity);
+    if (els.quickIntensity) {
+      els.quickIntensity.value = String(ui.quick.intensity);
+    }
     els.quickNote.value = ui.quick.note;
 
     renderQuickIntensityLabel();
@@ -295,7 +299,9 @@
   }
 
   function renderQuickIntensityLabel() {
-    els.quickIntensityLabel.textContent = DATA.intensityLabels[ui.quick.intensity];
+    if (els.quickIntensityLabel) {
+      els.quickIntensityLabel.textContent = DATA.intensityLabels[ui.quick.intensity];
+    }
   }
 
   function renderQuickSelectedStrips() {
@@ -320,7 +326,7 @@
       projectId: "emotion",
       query: ui.quick.emotionQuery,
       selectedIds: ui.quick.selectedEmotionIds,
-      emptyText: "这里会显示你常用的情绪标签，也会根据输入补充参考词。"
+      emptyText: ""
     });
   }
 
@@ -334,7 +340,7 @@
       projectId: "somatic",
       query: ui.quick.somaticQuery,
       selectedIds: ui.quick.selectedSomaticIds,
-      emptyText: "这里会显示你用过的躯体感觉，也会给你一些可直接采用的参考词。"
+      emptyText: ""
     });
   }
 
@@ -486,7 +492,7 @@
         projectId: "somatic",
         query: ui.guided.somaticQuery,
         selectedIds: ui.guided.selectedSomaticIds,
-        emptyText: "这里会联想你以前记录过的躯体感觉，也会补一些参考词。"
+        emptyText: ""
       });
       renderInlineCreator(document.getElementById("guided-somatic-creator"), "guided-somatic", getCreatorDraft("guided-somatic"));
     }
@@ -497,7 +503,7 @@
         projectId: "emotion",
         query: ui.guided.emotionQuery,
         selectedIds: ui.guided.selectedEmotionIds,
-        emptyText: "这里会联想你以前记录过的情绪标签。"
+        emptyText: ""
       });
       renderInlineCreator(document.getElementById("guided-emotion-creator"), "guided-emotion", getCreatorDraft("guided-emotion"));
 
@@ -521,8 +527,8 @@
     return `
       <div class="step-card">
         <div class="step-copy">
-          <h3>先停一下，感受身体哪里最明显</h3>
-          <p class="body-copy">可以先把手放在最有感觉的地方，看看那里是紧、麻、热、堵，还是别的什么感觉。</p>
+          <h3>躯体感受</h3>
+          <p class="body-copy">先停一下，感受身体哪里最明显。</p>
         </div>
 
         <div>
@@ -556,7 +562,7 @@
               id="guided-somatic-input"
               type="text"
               autocomplete="off"
-              placeholder="例如：胸口发紧、后背发凉、太阳穴刺痛"
+              placeholder="请输入躯体感受，如：胸口发紧、头皮发麻、肩膀很紧"
               value="${escapeHtml(ui.guided.somaticQuery)}"
             >
           </div>
@@ -584,18 +590,18 @@
     return `
       <div class="step-card">
         <div class="step-copy">
-          <h3>给情绪命名，并为它打一个强度</h3>
-          <p class="body-copy">先用自己的语言描述此刻的情绪，再决定是否借助参考分类来细化它。</p>
+          <h3>情绪强度</h3>
+          <p class="body-copy">先用自己的语言写下情绪，再判断它此刻有多强。</p>
         </div>
 
         <div>
-          <p class="group-title">输入情绪</p>
+          <p class="group-title">情绪</p>
           <div class="input-shell">
             <input
               id="guided-emotion-input"
               type="text"
               autocomplete="off"
-              placeholder="例如：伤心、麻木、担心、安心"
+              placeholder="请输入情绪，如：伤心、麻木、安心、委屈"
               value="${escapeHtml(ui.guided.emotionQuery)}"
             >
           </div>
@@ -679,11 +685,11 @@
               ${hasReferenceSelection ? "" : "disabled"}
             >加入已选情绪</button>
           </div>
-          <p class="field-subtle">
-            ${hasReferenceSelection
-              ? `当前参考：${escapeHtml(category.label)} · ${escapeHtml(group.label)} · ${escapeHtml(ui.guided.referenceEmotionTagLabel)}`
-              : "按顺序选到三级后，就可以直接加入已选情绪。"}
-          </p>
+          ${hasReferenceSelection ? `
+            <p class="field-subtle">
+              当前参考：${escapeHtml(category.label)} · ${escapeHtml(group.label)} · ${escapeHtml(ui.guided.referenceEmotionTagLabel)}
+            </p>
+          ` : ""}
         </div>
 
         <div class="form-block">
@@ -705,15 +711,15 @@
     return `
       <div class="step-card">
         <div class="step-copy">
-          <h3>发生了什么</h3>
-          <p class="body-copy">可以写现在刚发生的事，也可以写前几天延续下来的事，或者某段回忆突然被勾起来。</p>
+          <h3>触发事件</h3>
+          <p class="body-copy">写下这次情绪前后发生了什么，哪怕只是一个片段。</p>
         </div>
         <div class="form-block">
-          <label class="field-label" for="guided-event-text">这一刻最想记下来的事情</label>
+          <label class="field-label" for="guided-event-text">发生了什么</label>
           <textarea
             id="guided-event-text"
             rows="6"
-            placeholder="例如：下午开会前突然想到上周的冲突，胸口一下就紧了起来。"
+            placeholder="如果你愿意，可以写下触发这次情绪的事。"
           >${escapeHtml(ui.guided.eventText)}</textarea>
         </div>
       </div>
@@ -725,14 +731,14 @@
       <div class="step-card">
         <div class="step-copy">
           <h3>旧日回声</h3>
-          <p class="body-copy">这一步可以跳过。如果你愿意，可以记下小时候或更早以前有没有类似感觉。</p>
+          <p class="body-copy">如果你愿意，记下它是否勾起了过去相似的感觉。</p>
         </div>
         <div class="form-block">
-          <label class="field-label" for="guided-childhood-echo">这个感觉小时候有没有类似经历</label>
+          <label class="field-label" for="guided-childhood-echo">它有没有让你想起过去</label>
           <textarea
             id="guided-childhood-echo"
             rows="6"
-            placeholder="例如：小时候被点名批评时，也会有同样胸口发紧、想躲起来的感觉。"
+            placeholder="如果你愿意，可以补充它和过去的连接。"
           >${escapeHtml(ui.guided.childhoodEcho)}</textarea>
         </div>
       </div>
@@ -2823,7 +2829,7 @@
       .filter(Boolean);
 
     if (!emotionEntries.length && !somaticEntries.length && !note) {
-      toast("至少留下一点情绪、躯体感受或一句话备注再保存。");
+      toast("至少填写一项情绪、躯体感受或补充说明。");
       return;
     }
 

@@ -26,22 +26,11 @@
     </header>
 
     <main class="main-content">
-      <section class="screen active" id="screen-home" aria-labelledby="home-title">
+      <section class="screen active" id="screen-home" aria-label="首页">
         <div class="card home-primary-card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">即时记录</p>
-              <h2 id="home-title">快速记录</h2>
-            </div>
-          </div>
-          <p class="body-copy">
-            用几个词，记录你此刻最明显的情绪与身体感受。你可以直接输入，也可以从常用标签中快速选择。
-          </p>
-
           <div class="field-panel">
             <div class="field-header">
-              <h3>情绪记录</h3>
-              <p class="field-subtle">用一个或几个词，描述你此刻最明显的情绪状态。</p>
+              <h3>情绪</h3>
             </div>
             <div id="quick-emotion-selected" class="selected-strip"></div>
             <div class="input-shell">
@@ -49,7 +38,7 @@
                 id="quick-emotion-input"
                 type="text"
                 autocomplete="off"
-                placeholder="输入情绪，例如：伤心、麻木、安心、委屈"
+                placeholder="请输入情绪，如：伤心、麻木、安心、委屈"
               >
             </div>
             <div id="quick-emotion-suggestions" class="suggestion-list"></div>
@@ -59,7 +48,6 @@
           <div class="field-panel">
             <div class="field-header">
               <h3>躯体感受</h3>
-              <p class="field-subtle">记录身体里最明显的感觉，例如紧、堵、麻、热、酸或疲惫。</p>
             </div>
             <div id="quick-somatic-selected" class="selected-strip"></div>
             <div class="input-shell">
@@ -67,7 +55,7 @@
                 id="quick-somatic-input"
                 type="text"
                 autocomplete="off"
-                placeholder="输入躯体感受，例如：胸口发紧、头皮发麻、肩膀很紧"
+                placeholder="请输入躯体感受，如：胸口发紧、头皮发麻、肩膀很紧"
               >
             </div>
             <div id="quick-somatic-suggestions" class="suggestion-list"></div>
@@ -75,28 +63,16 @@
           </div>
 
           <div class="form-block">
-            <label class="field-label" for="quick-intensity">这次情绪波动强度</label>
-            <div class="range-wrap">
-              <input id="quick-intensity" type="range" min="1" max="5" step="1" value="3">
-              <div class="range-meta">
-                <span>轻微</span>
-                <strong id="quick-intensity-label">3 · 有点明显</strong>
-                <span>强烈</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-block">
-            <label class="field-label" for="quick-note">一句话备注</label>
+            <label class="field-label" for="quick-note">补充说明</label>
             <textarea
               id="quick-note"
               rows="4"
-              placeholder="例如：晚饭前突然开始胸口发紧，想到明天的事情很慌。"
+              placeholder="如果你愿意，可以补充这一刻发生了什么。"
             ></textarea>
           </div>
 
           <div class="save-row">
-            <button class="primary-button" id="save-quick-btn" type="button">保存这次快速记录</button>
+            <button class="primary-button" id="save-quick-btn" type="button">保存记录</button>
           </div>
         </div>
 
@@ -184,8 +160,7 @@
         <div class="card guided-intro">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">四步梳理</p>
-              <h2 id="guided-title">引导记录</h2>
+              <h2 id="guided-title">心绪记录</h2>
             </div>
             <span class="hint-tag">当前时段 · <span id="guided-slot-label">--</span></span>
           </div>
@@ -201,7 +176,7 @@
             <button class="ghost-button" id="guided-reset-btn" type="button">重新开始这次引导</button>
             <button class="ghost-button" id="guided-prev-btn" type="button">上一步</button>
             <button class="secondary-button" id="guided-next-btn" type="button">下一步</button>
-            <button class="primary-button hidden" id="guided-save-btn" type="button">保存这次引导记录</button>
+            <button class="primary-button hidden" id="guided-save-btn" type="button">保存记录</button>
           </div>
         </div>
       </section>

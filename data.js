@@ -126,7 +126,7 @@ window.APP_DATA = {
     4: "4 · 很强",
     5: "5 · 非常强烈"
   },
-  guidedStepTitles: ["身体", "情绪与强度", "发生了什么", "旧日回声"],
+  guidedStepTitles: ["躯体感受", "情绪强度", "触发事件", "旧日回声"],
   quickEmotionIds: [
     "joy-受到启发的",
     "joy-充满希望的",
