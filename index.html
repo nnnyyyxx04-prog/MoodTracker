@@ -22,12 +22,18 @@
       <div>
         <h1>心绪记录</h1>
       </div>
-      <span class="hint-tag topbar-slot" id="current-slot-tag">当前时段 · --</span>
     </header>
 
     <main class="main-content">
       <section class="screen active" id="screen-home" aria-label="首页">
         <div class="card home-primary-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">EMOTIONS</p>
+              <h2>情绪记录</h2>
+            </div>
+          </div>
+
           <div class="field-panel">
             <div class="field-header">
               <h3>情绪</h3>
@@ -165,7 +171,7 @@
           <div class="stepper" id="guided-stepper"></div>
           <div id="guided-step-content" class="guided-content"></div>
           <div class="step-actions">
-            <button class="ghost-button" id="guided-reset-btn" type="button">重新开始这次引导</button>
+            <button class="ghost-button" id="guided-reset-btn" type="button">重置引导</button>
             <button class="ghost-button" id="guided-prev-btn" type="button">上一步</button>
             <button class="secondary-button" id="guided-next-btn" type="button">下一步</button>
             <button class="primary-button hidden" id="guided-save-btn" type="button">保存记录</button>
@@ -230,7 +236,6 @@
               <h2 id="recent-title">最近记录</h2>
             </div>
           </div>
-          <p class="body-copy">这里会显示最近 50 条记录，方便快速回看。</p>
           <div id="recent-records" class="record-list"></div>
         </div>
       </section>

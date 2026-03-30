@@ -160,17 +160,16 @@ button:disabled {
 }
 
 .topbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: flex-start;
-  gap: 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   min-width: 0;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
 .topbar > div {
-  flex: 1;
   min-width: 0;
+  text-align: center;
 }
 
 .topbar-meta {
@@ -180,13 +179,7 @@ button:disabled {
 }
 
 .topbar-slot {
-  justify-self: end;
-  align-self: start;
-  flex-shrink: 0;
-  max-width: min(46vw, 180px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: none;
 }
 
 .eyebrow {
@@ -292,6 +285,14 @@ p {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.home-primary-card > .section-heading {
+  margin-bottom: 8px;
+}
+
+.home-primary-card > .field-panel:first-of-type {
+  margin-top: 4px;
 }
 
 .hint-tag {
@@ -925,8 +926,15 @@ p {
   font-size: 30px;
 }
 
+.summary-card-label {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
 .summary-card {
-  min-height: 140px;
+  min-height: 120px;
+  padding: 14px 12px;
 }
 
 .chart-row {
@@ -1038,6 +1046,13 @@ p {
   text-align: left;
 }
 
+.stats-tag-count {
+  flex: 0 0 auto;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 16px;
+}
+
 .stats-tag-card.active {
   border-color: rgba(216, 115, 84, 0.18);
   background: rgba(255, 248, 243, 0.96);
@@ -1124,14 +1139,12 @@ p {
 
 .record-card {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .record-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
+  display: grid;
+  gap: 4px;
 }
 
 .record-meta {
@@ -1157,8 +1170,10 @@ p {
 }
 
 .record-entry {
-  padding: 10px 12px;
-  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
   background: rgba(255, 247, 239, 0.92);
   border: 1px solid rgba(73, 57, 45, 0.06);
 }
@@ -1168,6 +1183,28 @@ p {
   align-items: center;
   gap: 8px;
   font-weight: 600;
+}
+
+.record-entry-project {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(73, 57, 45, 0.06);
+  font-weight: 600;
+}
+
+.record-entry-accent {
+  inline-size: 4px;
+  block-size: 16px;
+  border-radius: 999px;
+  background: var(--project-color, var(--secondary));
+  flex-shrink: 0;
 }
 
 .record-entry-note {
@@ -1542,20 +1579,7 @@ p {
   }
 
   .topbar {
-    position: relative;
-    display: block;
-    min-height: 40px;
-    padding-right: 148px;
-    gap: 12px;
-  }
-
-  .topbar-slot {
-    position: absolute;
-    top: 0;
-    right: 0;
-    max-width: 140px;
-    padding: 7px 10px;
-    font-size: 11px;
+    margin-bottom: 16px;
   }
 
   .record-header,
@@ -1574,16 +1598,22 @@ p {
   }
 
   .summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .summary-card {
-    min-height: 116px;
-    padding: 14px;
+    min-height: 92px;
+    padding: 12px 10px;
+  }
+
+  .summary-card-label {
+    font-size: 12px;
   }
 
   .summary-card strong {
-    font-size: 28px;
+    margin-top: 8px;
+    font-size: 24px;
   }
 
   h1 {
@@ -1622,13 +1652,14 @@ p {
     width: 100%;
     min-width: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .stats-tag-card {
-    min-height: 84px;
+    min-height: 52px;
     padding: 12px 14px;
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
 
   .choice-grid {

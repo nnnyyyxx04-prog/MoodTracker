@@ -269,7 +269,9 @@
     const slot = getCurrentSlot(now);
     const weeklyCount = filterRecordsByRange("7d").length;
 
-    els.currentSlotTag.textContent = `当前时段 · ${slot.name}`;
+    if (els.currentSlotTag) {
+      els.currentSlotTag.textContent = `当前时段 · ${slot.name}`;
+    }
     els.todayLabel.textContent = `${now.getMonth() + 1} 月 ${now.getDate()} 日`;
     els.currentSlotLabel.textContent = `${slot.name} ${slot.start}-${slot.end}`;
     els.weeklyCountLabel.textContent = `${weeklyCount} 次`;
@@ -1099,7 +1101,7 @@
           <span class="tag-dot" style="--dot-color:${safeColor(item.color)}"></span>
           <span>${escapeHtml(item.label)}</span>
         </span>
-        <span>${item.count}</span>
+        <span class="stats-tag-count">${item.count}</span>
       </button>
     `).join("");
   }
@@ -1130,10 +1132,9 @@
       <article class="record-card">
         <div class="record-header">
           <div>
-            <h4>${escapeHtml(`${record.slotName} · ${formatRecordMoment(record.createdAt)}`)}</h4>
+            <h4>${escapeHtml(formatFullRecordMoment(record.createdAt))}</h4>
             <div class="record-meta">${escapeHtml(sourceLabel(record.source))}${record.projectEntries.length ? ` · ${escapeHtml(record.projectEntries.map((entry) => entry.projectName).join(" / "))}` : ""}</div>
           </div>
-          <span class="usage-badge">${escapeHtml(record.day)}</span>
         </div>
         ${recordBodyMarkup(record)}
         <div class="record-entry-list">
@@ -2250,7 +2251,7 @@
   function summaryCardMarkup(title, value) {
     return `
       <div class="summary-card">
-        <p class="eyebrow">${escapeHtml(title)}</p>
+        <p class="summary-card-label">${escapeHtml(title)}</p>
         <strong>${escapeHtml(value)}</strong>
       </div>
     `;
@@ -2285,8 +2286,8 @@
     const projectColor = entry.projectColor || (project && project.color) || "#4f8f8b";
     return `
       <div class="record-entry">
-        <div class="record-entry-title">
-          <span class="tag-dot" style="--dot-color:${safeColor(projectColor)}"></span>
+        <div class="record-entry-project" style="--project-color:${safeColor(projectColor)}">
+          <span class="record-entry-accent"></span>
           <span>${escapeHtml(entry.projectName)}</span>
         </div>
         <div class="record-badges">
@@ -4573,6 +4574,11 @@
   function formatRecordMoment(timestamp) {
     const date = new Date(timestamp);
     return `${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function formatFullRecordMoment(timestamp) {
+    const date = new Date(timestamp);
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
   function formatMiniDay(dayKey) {
