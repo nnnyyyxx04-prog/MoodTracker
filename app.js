@@ -95,15 +95,18 @@
     els.guidedPrevBtn = document.getElementById("guided-prev-btn");
     els.guidedNextBtn = document.getElementById("guided-next-btn");
     els.guidedSaveBtn = document.getElementById("guided-save-btn");
+    els.statsScreen = document.getElementById("screen-stats");
 
     els.statsRangeSelector = document.getElementById("stats-range-selector");
     els.statsSummary = document.getElementById("stats-summary");
     els.emotionDonut = document.getElementById("emotion-donut");
-    els.donutCenterLabel = document.getElementById("donut-center-label");
+    els.emotionCenterLabel = document.getElementById("emotion-center-label");
+    els.donutCenterLabel = els.emotionCenterLabel;
     els.emotionLegend = document.getElementById("emotion-legend");
-    els.intensityTrend = document.getElementById("intensity-trend");
-    els.projectFrequency = document.getElementById("project-frequency");
-    els.somaticFrequency = document.getElementById("somatic-frequency");
+    els.somaticDonut = document.getElementById("somatic-donut");
+    els.somaticCenterLabel = document.getElementById("somatic-center-label");
+    els.somaticLegend = document.getElementById("somatic-legend");
+    els.somaticFrequency = els.somaticLegend;
 
     els.recentRecords = document.getElementById("recent-records");
     els.settingsView = document.getElementById("settings-view");
@@ -213,6 +216,9 @@
       renderStats();
       renderNav();
     });
+    if (els.statsScreen) {
+      els.statsScreen.addEventListener("click", onStatsClick);
+    }
 
     els.settingsView.addEventListener("click", onSettingsClick);
     els.settingsView.addEventListener("input", onSettingsInput);
@@ -267,7 +273,9 @@
     els.todayLabel.textContent = `${now.getMonth() + 1} 月 ${now.getDate()} 日`;
     els.currentSlotLabel.textContent = `${slot.name} ${slot.start}-${slot.end}`;
     els.weeklyCountLabel.textContent = `${weeklyCount} 次`;
-    els.guidedSlotLabel.textContent = slot.name;
+    if (els.guidedSlotLabel) {
+      els.guidedSlotLabel.textContent = slot.name;
+    }
   }
 
   function renderNav() {
@@ -311,12 +319,14 @@
   }
 
   function getEmotionInputPlaceholder() {
+    if (useCompactPlaceholders()) return "如：伤心、麻木、安心";
     return useCompactPlaceholders()
       ? "如：伤心、麻木、安心、委屈"
       : "请输入情绪，如：伤心、麻木、安心、委屈";
   }
 
   function getSomaticInputPlaceholder() {
+    if (useCompactPlaceholders()) return "如：胸口发紧、头皮发麻";
     return useCompactPlaceholders()
       ? "如：胸口发紧、头皮发麻、肩膀很紧"
       : "请输入躯体感受，如：胸口发紧、头皮发麻、肩膀很紧";
@@ -449,7 +459,7 @@
     const recent = getRecentOtherRecords(8);
 
     if (!recent.length) {
-      els.otherRecordsSelected.innerHTML = `<div class="selected-placeholder">这里会显示你最近加过的其他项目标签。内容会按一行横向滑动，不会把页面撑得太长。</div>`;
+      els.otherRecordsSelected.innerHTML = "";
       return;
     }
 
@@ -648,7 +658,7 @@
                 <span>一级分类</span>
               </label>
               <select id="guided-emotion-category" class="reference-select" style="${referenceSelectStyle(categoryColor)}">
-                <option value="">先选情绪大类</option>
+                <option value="" disabled hidden ${ui.guided.referenceEmotionCategoryId ? "" : "selected"}>先选情绪大类</option>
                 ${DATA.emotionCategories.map((item) => `
                   <option value="${escapeHtml(item.id)}" ${ui.guided.referenceEmotionCategoryId === item.id ? "selected" : ""}>
                     ${escapeHtml(getEmotionCategoryOptionLabel(item))}
@@ -667,7 +677,7 @@
                 style="${referenceSelectStyle(groupColor)}"
                 ${category ? "" : "disabled"}
               >
-                <option value="">再选细分类</option>
+                <option value="" disabled hidden ${ui.guided.referenceEmotionGroupLabel ? "" : "selected"}>再选细分类</option>
                 ${groups.map((item) => `
                   <option value="${escapeHtml(item.label)}" ${ui.guided.referenceEmotionGroupLabel === item.label ? "selected" : ""}>
                     ${escapeHtml(item.label)}
@@ -686,7 +696,7 @@
                 style="${referenceSelectStyle(tagColor)}"
                 ${group ? "" : "disabled"}
               >
-                <option value="">最后选具体情绪</option>
+                <option value="" disabled hidden ${ui.guided.referenceEmotionTagLabel ? "" : "selected"}>最后选具体情绪</option>
                 ${tagOptions.map((tagLabel) => `
                   <option value="${escapeHtml(tagLabel)}" ${ui.guided.referenceEmotionTagLabel === tagLabel ? "selected" : ""}>
                     ${escapeHtml(tagLabel)}
@@ -764,6 +774,30 @@
   }
 
   function renderStats() {
+    {
+    renderStatsRangeButtons();
+
+    const records = filterRecordsByRange(ui.statsRange);
+    const emotionEntries = collectProjectTagEntries(records, "emotion");
+    const somaticEntries = collectProjectTagEntries(records, "somatic");
+    const projectCounts = countProjectUsage(records);
+
+    const avgIntensity = emotionEntries.length
+      ? (emotionEntries.reduce((sum, item) => sum + Number(item.intensity || 0), 0) / emotionEntries.length).toFixed(1)
+      : "--";
+
+    els.statsSummary.innerHTML = [
+      summaryCardMarkup("记录总数", `${records.length}`),
+      summaryCardMarkup("记录天数", `${new Set(records.map((record) => record.day)).size}`),
+      summaryCardMarkup("平均强度", `${avgIntensity}`),
+      summaryCardMarkup("涉及项目", `${Object.keys(projectCounts).length}`)
+    ].join("");
+
+    renderEmotionTagMix(emotionEntries);
+    renderSomaticTagMix(somaticEntries);
+    return;
+    }
+
     renderStatsRangeButtons();
 
     const records = filterRecordsByRange(ui.statsRange);
@@ -786,6 +820,16 @@
     renderIntensityTrend(records);
     renderProjectFrequency(projectCounts);
     renderSomaticFrequency(somaticEntries);
+
+    els.statsSummary.innerHTML = [
+      summaryCardMarkup("记录总数", `${records.length}`),
+      summaryCardMarkup("记录天数", `${new Set(records.map((record) => record.day)).size}`),
+      summaryCardMarkup("平均强度", `${avgIntensity}`),
+      summaryCardMarkup("涉及项目", `${Object.keys(projectCounts).length}`)
+    ].join("");
+
+    renderEmotionTagMix(emotionEntries);
+    renderSomaticTagMix(somaticEntries);
   }
 
   function renderStatsRangeButtons() {
@@ -838,6 +882,8 @@
   }
 
   function renderIntensityTrend(records) {
+    if (!els.intensityTrend) return;
+
     const days = trendDays(ui.statsRange, records);
 
     els.intensityTrend.innerHTML = days.map((dayKey) => {
@@ -858,6 +904,8 @@
   }
 
   function renderProjectFrequency(projectCounts) {
+    if (!els.projectFrequency) return;
+
     const list = Object.entries(projectCounts)
       .map(([projectId, count]) => ({
         projectId,
@@ -918,6 +966,156 @@
     `).join("");
   }
 
+  function renderEmotionTagMix(entries) {
+    renderStatsTagChart("emotion", entries, {
+      donutEl: els.emotionDonut,
+      centerEl: els.emotionCenterLabel,
+      listEl: els.emotionLegend,
+      emptyCenterText: "暂无情绪数据",
+      emptyListText: "记录情绪后，这里会出现最常记录的情绪标签。",
+      totalLabel: "次情绪记录"
+    });
+  }
+
+  function renderSomaticTagMix(entries) {
+    renderStatsTagChart("somatic", entries, {
+      donutEl: els.somaticDonut,
+      centerEl: els.somaticCenterLabel,
+      listEl: els.somaticLegend,
+      emptyCenterText: "暂无躯体数据",
+      emptyListText: "记录躯体感受后，这里会出现最常记录的躯体标签。",
+      totalLabel: "次躯体记录"
+    });
+  }
+
+  function renderStatsTagChart(kind, entries, config) {
+    if (!config.donutEl || !config.centerEl || !config.listEl) return;
+
+    const list = aggregateStatsTags(entries, kind);
+    const total = list.reduce((sum, item) => sum + item.count, 0);
+    const activeLabel = ui.statsFocus[kind];
+    const activeItem = list.find((item) => item.label === activeLabel) || null;
+
+    if (!total) {
+      ui.statsFocus[kind] = "";
+      config.donutEl.classList.add("empty");
+      config.donutEl.style.background = "";
+      config.donutEl.innerHTML = "";
+      config.centerEl.textContent = config.emptyCenterText;
+      config.listEl.innerHTML = renderEmptyState(config.emptyListText);
+      return;
+    }
+
+    config.donutEl.classList.remove("empty");
+    config.donutEl.style.background = "transparent";
+    config.donutEl.innerHTML = donutSvgMarkup(kind, list, activeItem ? activeItem.label : "");
+    updateDonutCenterLabel(config.centerEl, activeItem, total, config.totalLabel);
+    config.listEl.innerHTML = statsTagGridMarkup(kind, list, activeItem ? activeItem.label : "");
+  }
+
+  function aggregateStatsTags(entries, kind) {
+    const counts = new Map();
+    const fallbackColor = kind === "emotion" ? getProject("emotion").color : getProject("somatic").color;
+
+    entries.forEach((entry) => {
+      const label = entry.label || (kind === "emotion" ? "未命名情绪" : "未命名躯体感受");
+      const color = entry.color || fallbackColor;
+
+      if (!counts.has(label)) {
+        counts.set(label, {
+          label,
+          count: 0,
+          color
+        });
+      }
+
+      counts.get(label).count += 1;
+    });
+
+    return Array.from(counts.values()).sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.label.localeCompare(b.label, "zh-CN");
+    });
+  }
+
+  function donutSvgMarkup(kind, list, activeLabel) {
+    const radius = 40;
+    const circumference = 2 * Math.PI * radius;
+    const total = list.reduce((sum, item) => sum + item.count, 0);
+    let offset = 0;
+
+    return `
+      <svg class="donut-svg" viewBox="0 0 100 100" aria-hidden="true">
+        ${list.map((item) => {
+          const segment = (item.count / total) * circumference;
+          const gap = Math.max(circumference - segment, 0);
+          const markup = `
+            <circle
+              class="donut-segment ${activeLabel === item.label ? "active" : ""}"
+              cx="50"
+              cy="50"
+              r="${radius}"
+              fill="none"
+              stroke="${safeColor(item.color)}"
+              stroke-width="16"
+              stroke-dasharray="${segment} ${gap || 0.01}"
+              stroke-dashoffset="${-offset}"
+              transform="rotate(-90 50 50)"
+              data-donut-kind="${kind}"
+              data-donut-label="${escapeHtml(item.label)}"
+            ></circle>
+          `;
+          offset += segment;
+          return markup;
+        }).join("")}
+      </svg>
+    `;
+  }
+
+  function updateDonutCenterLabel(centerEl, activeItem, total, totalLabel) {
+    if (activeItem) {
+      centerEl.innerHTML = `
+        <strong>${escapeHtml(activeItem.label)}</strong>
+        <span>${activeItem.count} 次</span>
+      `;
+      return;
+    }
+
+    centerEl.innerHTML = `
+      <strong>${total}</strong>
+      <span>${escapeHtml(totalLabel)}</span>
+    `;
+  }
+
+  function statsTagGridMarkup(kind, list, activeLabel) {
+    return list.slice(0, 8).map((item) => `
+      <button
+        type="button"
+        class="stats-tag-card ${activeLabel === item.label ? "active" : ""}"
+        data-donut-kind="${kind}"
+        data-donut-label="${escapeHtml(item.label)}"
+      >
+        <span class="legend-label">
+          <span class="tag-dot" style="--dot-color:${safeColor(item.color)}"></span>
+          <span>${escapeHtml(item.label)}</span>
+        </span>
+        <span>${item.count}</span>
+      </button>
+    `).join("");
+  }
+
+  function onStatsClick(event) {
+    const target = event.target.closest("[data-donut-kind][data-donut-label]");
+    if (!target) return;
+
+    const kind = target.dataset.donutKind;
+    const label = target.dataset.donutLabel;
+    if (!kind || !label) return;
+
+    ui.statsFocus[kind] = ui.statsFocus[kind] === label ? "" : label;
+    renderStats();
+  }
+
   function renderRecentRecords() {
     const recent = [...state.records]
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
@@ -947,6 +1145,13 @@
 
   function renderSettings() {
     els.settingsView.innerHTML = settingsPageMarkup();
+
+    if (ui.settings.page === "root") {
+      const eyebrow = els.settingsView.querySelector(".settings-header .eyebrow");
+      const copy = els.settingsView.querySelector(".settings-header .body-copy");
+      if (eyebrow) eyebrow.textContent = "SETTINGS";
+      if (copy) copy.remove();
+    }
   }
 
   function settingsPageMarkup() {
@@ -1167,7 +1372,7 @@
       return {
         label,
         projectId: "somatic",
-        color: previous && previous.color ? previous.color : getSomaticColorPalette()[2]
+        color: previous && previous.color ? previous.color : getSomaticRecommendedColor(label)
       };
     }
 
@@ -1298,7 +1503,7 @@
     }
 
     if (context === "quick-somatic" || context === "guided-somatic") {
-      return getSomaticColorPalette();
+      return getSomaticColorPalette(draft && draft.label);
     }
 
     if (context === "other-project") {
@@ -1508,7 +1713,7 @@
       const draft = getLibraryTagDraft(project.id);
       const recommendedColors = project.id === "emotion"
         ? getEmotionCategoryPalette(draft.categoryId)
-        : getSomaticColorPalette();
+        : getSomaticColorPalette(draft.name);
 
       content = `
         <div class="manager-panel">
@@ -1956,7 +2161,7 @@
           ? creatorDraft.color
           : (projectId === "emotion"
             ? getEmotionCategoryDefaultColor("")
-            : (projectId === "somatic" ? getSomaticColorPalette()[2] : project.color)),
+            : (projectId === "somatic" ? getSomaticRecommendedColor(trimmed) : project.color)),
         projectId,
         createLabel: trimmed,
         isCreate: true
@@ -2042,12 +2247,11 @@
     `;
   }
 
-  function summaryCardMarkup(title, value, description) {
+  function summaryCardMarkup(title, value) {
     return `
       <div class="summary-card">
         <p class="eyebrow">${escapeHtml(title)}</p>
         <strong>${escapeHtml(value)}</strong>
-        <p>${escapeHtml(description)}</p>
       </div>
     `;
   }
@@ -2704,7 +2908,7 @@
 
     ui.settings.drafts.library.somatic = {
       name: "",
-      color: getSomaticColorPalette()[2]
+      color: getSomaticRecommendedColor("")
     };
   }
 
@@ -3692,7 +3896,7 @@
       somatic: DATA.somaticTags.map((tag) => ({
         id: tag.id,
         label: tag.label,
-        color: safeColor(tag.color, "#5a84c6"),
+        color: getSomaticReferenceColor(tag),
         categoryId: null,
         categoryName: "躯体参考",
         groupLabel: null
@@ -4138,7 +4342,7 @@
         },
         somatic: {
           name: "",
-          color: getSomaticColorPalette()[2]
+          color: getSomaticRecommendedColor("")
         }
       },
       newProject: {
@@ -4154,6 +4358,10 @@
     return {
       activeScreen: "home",
       statsRange: "7d",
+      statsFocus: {
+        emotion: "",
+        somatic: ""
+      },
       quick: {
         emotionQuery: "",
         somaticQuery: "",
@@ -4381,8 +4589,129 @@
     return getSuggestedPaletteForColor(getEmotionCategoryDefaultColor(categoryId));
   }
 
-  function getSomaticColorPalette() {
-    return getSuggestedPaletteForColor("#5a84c6");
+  function getSomaticPalettePresets() {
+    const bodyAreaColors = getBodyAreaColors();
+
+    return {
+      head: getSuggestedPaletteForColor(bodyAreaColors["头部"] || "#6c84d9"),
+      eyes: getSuggestedPaletteForColor(bodyAreaColors["眼睛"] || "#7a74d6"),
+      throat: getSuggestedPaletteForColor(bodyAreaColors["喉咙"] || "#5f84c6"),
+      chest: getSuggestedPaletteForColor(bodyAreaColors["胸口"] || "#d66761"),
+      heart: getSuggestedPaletteForColor(bodyAreaColors["心口"] || "#d95b7c"),
+      gut: getSuggestedPaletteForColor(bodyAreaColors["胃部"] || "#d9914e"),
+      abdomen: getSuggestedPaletteForColor(bodyAreaColors["腹部"] || "#cc9b52"),
+      shoulders: getSuggestedPaletteForColor(bodyAreaColors["肩颈"] || "#5b9c8d"),
+      limbs: getSuggestedPaletteForColor(bodyAreaColors["手臂"] || "#5f9c6f"),
+      legs: getSuggestedPaletteForColor(bodyAreaColors["腿部"] || "#6ea0a6"),
+      wholeBody: getSuggestedPaletteForColor(bodyAreaColors["全身"] || "#8b7ca8"),
+      default: getSuggestedPaletteForColor("#5a84c6")
+    };
+  }
+
+  function getSomaticPaletteKey(label) {
+    const text = normalizeLabel(label || "");
+
+    if (!text) return "default";
+    if (text.includes("眼") || text.includes("视线") || text.includes("视野")) return "eyes";
+
+    if (
+      text.includes("头")
+      || text.includes("太阳穴")
+      || text.includes("头皮")
+      || text.includes("晕")
+      || text.includes("失眠")
+      || text.includes("睡不着")
+      || text.includes("昏沉")
+    ) {
+      return "head";
+    }
+
+    if (
+      text.includes("喉")
+      || text.includes("咽")
+      || text.includes("呼吸")
+      || text.includes("喘")
+      || text.includes("窒息")
+      || text.includes("哽")
+    ) {
+      return "throat";
+    }
+
+    if (text.includes("心") || text.includes("心慌") || text.includes("心悸")) return "heart";
+    if (text.includes("胸") || text.includes("压") || text.includes("闷")) return "chest";
+
+    if (
+      text.includes("胃")
+      || text.includes("恶心")
+      || text.includes("反胃")
+      || text.includes("食欲")
+      || text.includes("想吐")
+    ) {
+      return "gut";
+    }
+
+    if (
+      text.includes("腹")
+      || text.includes("肚")
+      || text.includes("绞")
+      || text.includes("胀")
+      || text.includes("堵")
+    ) {
+      return "abdomen";
+    }
+
+    if (
+      text.includes("肩")
+      || text.includes("颈")
+      || text.includes("背")
+      || text.includes("脖")
+      || text.includes("紧绷")
+      || text.includes("僵")
+    ) {
+      return "shoulders";
+    }
+
+    if (
+      text.includes("手")
+      || text.includes("臂")
+      || text.includes("发抖")
+      || text.includes("抖")
+      || text.includes("肌肉")
+    ) {
+      return "limbs";
+    }
+
+    if (text.includes("腿") || text.includes("脚") || text.includes("站不稳")) return "legs";
+
+    if (
+      text.includes("全身")
+      || text.includes("浑身")
+      || text.includes("乏")
+      || text.includes("疲")
+      || text.includes("麻木")
+      || text.includes("虚")
+    ) {
+      return "wholeBody";
+    }
+
+    return "default";
+  }
+
+  function getSomaticColorPalette(label) {
+    const presets = getSomaticPalettePresets();
+    const key = getSomaticPaletteKey(label);
+    return presets[key] || presets.default;
+  }
+
+  function getSomaticRecommendedColor(label) {
+    const palette = getSomaticColorPalette(label);
+    return palette[3] || palette[2] || palette[0] || "#5a84c6";
+  }
+
+  function getSomaticReferenceColor(tag) {
+    const label = tag && (tag.label || tag.id || "");
+    const explicitColor = tag && tag.color;
+    return safeColor(explicitColor, getSomaticRecommendedColor(label));
   }
 
   function getEmotionCategoryHelperText(categoryId) {

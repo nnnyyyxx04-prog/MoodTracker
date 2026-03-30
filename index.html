@@ -66,7 +66,8 @@
             <label class="field-label" for="quick-note">补充说明</label>
             <textarea
               id="quick-note"
-              rows="4"
+              class="note-textarea"
+              rows="3"
               placeholder="如果你愿意，可以补充这一刻发生了什么。"
             ></textarea>
           </div>
@@ -79,7 +80,7 @@
         <div class="card home-secondary-card">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">扩展记录</p>
+              <p class="eyebrow">PROJECTS</p>
               <h2>其他项目记录</h2>
             </div>
           </div>
@@ -121,6 +122,7 @@
             <label class="field-label" for="other-note">补充说明</label>
             <textarea
               id="other-note"
+              class="note-textarea"
               rows="3"
               placeholder="例如：今天写了一个小时的数学题。"
             ></textarea>
@@ -133,7 +135,7 @@
 
         <div class="hero-card home-summary-card">
           <div>
-            <p class="eyebrow">记录节奏</p>
+            <p class="eyebrow">RHYTHM</p>
             <h2>先留下此刻，再慢慢回看变化</h2>
             <p class="hero-copy">
               当记录变得更轻、更快，你会更容易捕捉到真实的波动与变化。持续几天后，再回头看也会更清楚。
@@ -157,14 +159,7 @@
       </section>
 
       <section class="screen" id="screen-guided" aria-labelledby="guided-title">
-        <div class="card guided-intro">
-          <div class="section-heading">
-            <div>
-              <h2 id="guided-title">心绪记录</h2>
-            </div>
-            <span class="hint-tag">当前时段 · <span id="guided-slot-label">--</span></span>
-          </div>
-        </div>
+        <h2 id="guided-title" class="visually-hidden">心绪记录</h2>
 
         <div class="card">
           <div class="stepper" id="guided-stepper"></div>
@@ -197,37 +192,17 @@
         <div class="card">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Emotion Mix</p>
-              <h3>情绪分类分布</h3>
+              <p class="eyebrow">EMOTIONS</p>
+              <h3>常见情绪标签</h3>
             </div>
           </div>
           <div class="chart-row">
             <div class="donut-wrap">
               <div id="emotion-donut" class="donut-chart empty"></div>
-              <div id="donut-center-label" class="donut-center-label">暂无情绪数据</div>
+              <div id="emotion-center-label" class="donut-center-label">暂无情绪数据</div>
             </div>
-            <div id="emotion-legend" class="legend"></div>
+            <div id="emotion-legend" class="stats-tag-grid"></div>
           </div>
-        </div>
-
-        <div class="card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Intensity Trend</p>
-              <h3>情绪强度趋势</h3>
-            </div>
-          </div>
-          <div id="intensity-trend" class="trend-chart"></div>
-        </div>
-
-        <div class="card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Projects</p>
-              <h3>项目记录频率</h3>
-            </div>
-          </div>
-          <div id="project-frequency" class="bar-list"></div>
         </div>
 
         <div class="card">
@@ -237,7 +212,13 @@
               <h3>常见躯体感受</h3>
             </div>
           </div>
-          <div id="somatic-frequency" class="pill-list"></div>
+          <div class="chart-row">
+            <div class="donut-wrap">
+              <div id="somatic-donut" class="donut-chart empty"></div>
+              <div id="somatic-center-label" class="donut-center-label">暂无躯体数据</div>
+            </div>
+            <div id="somatic-legend" class="stats-tag-grid"></div>
+          </div>
         </div>
       </section>
 
