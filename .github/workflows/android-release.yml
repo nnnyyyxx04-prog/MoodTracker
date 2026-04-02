@@ -86,14 +86,20 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          keystore_b64="${ANDROID_KEYSTORE_BASE64#*=}"
+          store_password="${ANDROID_KEYSTORE_PASSWORD#*=}"
+          key_alias="${ANDROID_KEY_ALIAS#*=}"
+          key_password="${ANDROID_KEY_PASSWORD#*=}"
+
           mkdir -p android/signing
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/signing/release-keystore.jks
+          printf '%s' "$keystore_b64" | tr -d '\r\n\t ' | base64 --decode > android/signing/release-keystore.jks
           cat > android/keystore.properties <<EOF
           storeFile=signing/release-keystore.jks
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          keyPassword=$ANDROID_KEY_PASSWORD
+          storePassword=$store_password
+          keyAlias=$key_alias
+          keyPassword=$key_password
           EOF
+          keytool -list -keystore android/signing/release-keystore.jks -storepass "$store_password" >/dev/null
 
       - name: Build signed release APK and AAB
         if: steps.signing.outputs.ready == 'true'
