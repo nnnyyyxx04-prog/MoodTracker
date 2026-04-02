@@ -156,7 +156,7 @@ button:disabled {
   min-width: 0;
   min-height: 100vh;
   margin: 0 auto;
-  padding: 20px 16px calc(var(--nav-height) + 28px);
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 16px calc(var(--nav-height) + 28px);
 }
 
 .topbar {
@@ -1594,7 +1594,7 @@ p {
 
 @media (max-width: 560px) {
   .app-shell {
-    padding: 16px 12px calc(var(--nav-height) + 20px);
+    padding: calc(26px + env(safe-area-inset-top, 0px)) 12px calc(var(--nav-height) + 20px);
   }
 
   .card {
@@ -1613,7 +1613,7 @@ p {
   }
 
   .topbar {
-    margin-bottom: 16px;
+    margin-bottom: 18px;
   }
 
   .record-header,
