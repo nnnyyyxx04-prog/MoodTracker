@@ -1,5 +1,8 @@
 name: Build Android APK
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   workflow_dispatch:
   push:
@@ -31,8 +34,8 @@ jobs:
       - name: Install Android platform packages
         shell: bash
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install npm dependencies
         run: npm ci
