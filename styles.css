@@ -1153,6 +1153,11 @@ p {
   min-width: 0;
 }
 
+.record-header .mini-button {
+  justify-self: end;
+  align-self: start;
+}
+
 .record-meta {
   color: var(--muted);
   font-size: 12px;
@@ -1620,12 +1625,8 @@ p {
   }
 
   .record-header {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
-  }
-
-  .record-header .mini-button {
-    justify-self: start;
   }
 
   .hero-stats,
