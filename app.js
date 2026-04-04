@@ -39,6 +39,13 @@
     aabUrl: "",
     releasePageUrl: ""
   };
+  const BACKUP_TEXT_START_MARKER = "---- LUMEVA BACKUP DATA START ----";
+  const BACKUP_TEXT_END_MARKER = "---- LUMEVA BACKUP DATA END ----";
+  const NATIVE_SHADOW_BACKUP_PATH = "backups/app-state-backup.json";
+  const bootState = {
+    hadLocalState: false,
+    localStateError: false
+  };
 
   const REFERENCE_LIBRARY = createReferenceLibrary();
   const BUILTIN_PROJECTS = createBuiltinProjects();
@@ -48,6 +55,7 @@
 
   let deferredInstallPrompt = null;
   let reminderTimer = null;
+  let nativeShadowBackupTimer = null;
 
   document.addEventListener("DOMContentLoaded", init);
 
@@ -61,6 +69,7 @@
     syncReminderStatusText();
     startReminderMonitor();
     renderApp();
+    void bootstrapNativeBackup();
   }
 
   function cacheEls() {
@@ -129,6 +138,16 @@
     if (els.releasePageLink) {
       els.releasePageLink.href = ANDROID_DOWNLOADS.releasePageUrl || ANDROID_DOWNLOADS.apkUrl || "#";
     }
+  }
+
+  async function bootstrapNativeBackup() {
+    if (!isNativeApp()) return;
+
+    if (!bootState.hadLocalState || bootState.localStateError) {
+      await tryRestoreNativeShadowBackup();
+    }
+
+    scheduleNativeShadowBackup();
   }
 
   function bindEvents() {
@@ -1471,7 +1490,7 @@
           <div class="button-row">
             <button class="secondary-button" type="button" data-settings-action="generate-export">生成文字版</button>
             <button class="ghost-button" type="button" data-settings-action="copy-export">复制</button>
-            <button class="ghost-button" type="button" data-settings-action="download-export">下载 txt</button>
+            <button class="ghost-button" type="button" data-settings-action="download-export">${isNativeApp() ? "分享 txt" : "下载 txt"}</button>
           </div>
         </div>
 
@@ -2181,26 +2200,45 @@
 
   function settingsBackupMarkup() {
     const pending = ui.settings.pendingImport;
-    const statusText = ui.settings.backupStatus || "只支持导入从这个网页导出的 JSON 备份文件。";
+    const statusText = ui.settings.backupStatus || "正式版直接覆盖更新通常不会删除数据，但仍然建议定期导出完整备份。";
 
     return settingsShellMarkup({
       eyebrow: "备份",
       title: "备份与恢复",
-      description: "记录默认只保存在本机浏览器里，所以备份很重要。",
+      description: "完整备份会保留记录、颜色、标签和项目库。App 里会优先走系统分享，不再依赖不透明的下载目录。",
       backTo: "root",
       content: `
         <div class="manager-panel">
           <div class="button-row">
             <button class="secondary-button" type="button" data-settings-action="export-backup">导出 JSON 备份</button>
-            <button class="ghost-button" type="button" data-settings-action="trigger-import">导入备份</button>
+            <button class="ghost-button" type="button" data-settings-action="export-text-backup">导出文字备份</button>
           </div>
-          <input id="backup-import-file" type="file" accept=".json,application/json" class="hidden">
+          <div class="button-row">
+            <button class="secondary-button" type="button" data-settings-action="trigger-import">导入备份文件</button>
+            <button class="ghost-button" type="button" data-settings-action="prepare-text-import">导入粘贴内容</button>
+          </div>
+          <input id="backup-import-file" type="file" accept=".json,.txt,application/json,text/plain" class="hidden">
           <p class="settings-note" id="backup-status">${escapeHtml(statusText)}</p>
+        </div>
+        <div class="manager-panel">
+          <div class="form-block">
+            <label class="field-label" for="backup-import-text">粘贴备份文字</label>
+            <textarea
+              id="backup-import-text"
+              rows="6"
+              placeholder="可以粘贴 JSON 备份，或从这个应用导出的文字备份内容。"
+            >${escapeHtml(ui.settings.backupImportText)}</textarea>
+          </div>
+          <div class="button-row">
+            <button class="secondary-button" type="button" data-settings-action="prepare-text-import">解析粘贴内容</button>
+            <button class="ghost-button" type="button" data-settings-action="clear-text-import">清空</button>
+          </div>
         </div>
         ${pending ? `
           <div class="manager-panel">
             <div class="manager-copy">
               <strong>准备导入：${escapeHtml(pending.fileName)}</strong>
+              <p>类型：${escapeHtml(pending.formatLabel || "完整备份")}</p>
               <p>导出时间：${escapeHtml(formatImportMoment(pending.exportedAt))}</p>
               <p>记录 ${pending.recordCount} 条 · 项目 ${pending.projectCount} 个 · 标签 ${pending.tagCount} 个</p>
             </div>
@@ -3150,7 +3188,7 @@
     }
 
     if (action === "download-export") {
-      downloadExportText();
+      void downloadExportText();
       return;
     }
 
@@ -3213,7 +3251,12 @@
     }
 
     if (action === "export-backup") {
-      exportBackupJson();
+      void exportBackupJson();
+      return;
+    }
+
+    if (action === "export-text-backup") {
+      void exportBackupText();
       return;
     }
 
@@ -3225,6 +3268,17 @@
 
     if (action === "confirm-import") {
       confirmBackupImport();
+      return;
+    }
+
+    if (action === "prepare-text-import") {
+      preparePastedBackupImport();
+      return;
+    }
+
+    if (action === "clear-text-import") {
+      clearBackupImportText();
+      renderSettings();
       return;
     }
 
@@ -3311,6 +3365,10 @@
     if (target.id === "project-detail-tag-color") {
       getProjectTagDraft(ui.settings.projectId).color = target.value;
       return;
+    }
+
+    if (target.id === "backup-import-text") {
+      ui.settings.backupImportText = target.value;
     }
   }
 
@@ -4011,14 +4069,7 @@
       return;
     }
 
-    const rows = [...state.records]
-      .filter((record) => record.day >= ui.export.from && record.day <= ui.export.to)
-      .map((record) => ({
-        ...record,
-        projectEntries: record.projectEntries.filter((entry) => ui.export.selectedProjectIds.includes(entry.projectId))
-      }))
-      .filter((record) => record.projectEntries.length)
-      .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+    const rows = getFilteredExportRecords();
 
     ui.export.preview = buildExportText(rows);
     renderSettings();
@@ -4052,35 +4103,101 @@
     toast("已复制到剪贴板");
   }
 
-  function downloadExportText() {
+  async function downloadExportText() {
     const text = ui.export.preview.trim();
     if (!text) {
       toast("先生成文字版，再下载。");
       return;
     }
 
-    downloadBlob(
-      `心绪记录_${ui.export.from}_${ui.export.to}.txt`,
-      text,
-      "text/plain;charset=utf-8"
-    );
-    toast("txt 已开始下载");
+    try {
+      const result = await exportTextFile(
+        `心绪记录_${ui.export.from}_${ui.export.to}.txt`,
+        text,
+        "text/plain;charset=utf-8",
+        {
+          dialogTitle: "导出文字版",
+          shareText: "请保存这份心绪记录文字版。"
+        }
+      );
+      toast(result === "shared" ? "已打开系统分享，请保存 txt" : "txt 已开始下载");
+    } catch (_) {
+      toast("系统分享暂时不可用，请稍后再试。");
+    }
   }
 
   function buildExportText(records) {
-    const header = [
-      "心绪记录导出",
-      `时间范围：${ui.export.from} 至 ${ui.export.to}`,
-      `导出项目：${ui.export.selectedProjectIds.map((id) => {
+    return buildRecordTextDocument(records, {
+      title: "心绪记录导出",
+      timeframe: `${ui.export.from} 至 ${ui.export.to}`,
+      projectNames: ui.export.selectedProjectIds.map((id) => {
         const project = getProject(id);
         return project ? project.name : "";
-      }).filter(Boolean).join("、")}`,
-      `记录条数：${records.length}`,
-      ""
-    ];
+      }).filter(Boolean),
+      emptyMessage: "这个时间范围内没有匹配记录。"
+    });
+  }
+
+  function getFilteredExportRecords() {
+    return [...state.records]
+      .filter((record) => record.day >= ui.export.from && record.day <= ui.export.to)
+      .map((record) => ({
+        ...record,
+        projectEntries: record.projectEntries.filter((entry) => ui.export.selectedProjectIds.includes(entry.projectId))
+      }))
+      .filter((record) => record.projectEntries.length)
+      .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+  }
+
+  function buildBackupSnapshot() {
+    return {
+      format: "mood-tracker-backup",
+      exportedAt: new Date().toISOString(),
+      app: DATA.appName,
+      version: 3,
+      payload: deepCopy(state)
+    };
+  }
+
+  function buildBackupText(snapshot) {
+    const sortedRecords = [...snapshot.payload.records].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+    const readable = buildRecordTextDocument(sortedRecords, {
+      title: "心绪记录文字备份",
+      timeframe: "完整备份",
+      exportedAt: snapshot.exportedAt,
+      projectNames: snapshot.payload.projects.map((project) => project.name).filter(Boolean),
+      extraSummary: [
+        `项目数量：${snapshot.payload.projects.length}`,
+        `标签数量：${countProjectTags(snapshot.payload.projects)}`,
+        "这份 txt 同时附带完整恢复数据，可在设置里的“备份与恢复”中重新导入。"
+      ],
+      emptyMessage: "当前还没有记录。"
+    });
+    const encodedSnapshot = encodeBackupSnapshot(snapshot);
+    return `${readable}\n\n${BACKUP_TEXT_START_MARKER}\n${encodedSnapshot}\n${BACKUP_TEXT_END_MARKER}`;
+  }
+
+  function buildRecordTextDocument(records, options = {}) {
+    const header = [options.title || "心绪记录导出"];
+
+    if (options.exportedAt) {
+      header.push(`导出时间：${formatImportMoment(options.exportedAt)}`);
+    }
+
+    if (options.timeframe) {
+      header.push(`时间范围：${options.timeframe}`);
+    }
+
+    if (options.projectNames && options.projectNames.length) {
+      header.push(`导出项目：${options.projectNames.join("、")}`);
+    }
+
+    header.push(`记录条数：${records.length}`);
+    (options.extraSummary || []).forEach((line) => header.push(line));
+    header.push("");
 
     if (!records.length) {
-      return header.concat(["这个时间范围内没有匹配记录。"]).join("\n");
+      return header.concat([options.emptyMessage || "当前没有可导出的记录。"]).join("\n");
     }
 
     const body = records.map((record, index) => {
@@ -4119,24 +4236,62 @@
     return header.concat(body).join("\n\n");
   }
 
-  function exportBackupJson() {
-    const snapshot = {
-      format: "mood-tracker-backup",
-      exportedAt: new Date().toISOString(),
-      app: DATA.appName,
-      version: 2,
-      payload: deepCopy(state)
-    };
+  async function exportBackupJson() {
+    const snapshot = buildBackupSnapshot();
+    let result = "downloaded";
 
-    downloadBlob(
-      `心绪记录备份_${toDayKey(new Date())}.json`,
-      JSON.stringify(snapshot, null, 2),
-      "application/json;charset=utf-8"
-    );
+    try {
+      result = await exportTextFile(
+        `心绪记录备份_${toDayKey(new Date())}.json`,
+        JSON.stringify(snapshot, null, 2),
+        "application/json;charset=utf-8",
+        {
+          dialogTitle: "导出 JSON 备份",
+          shareText: "请保存这份完整 JSON 备份。"
+        }
+      );
+    } catch (_) {
+      ui.settings.backupStatus = "系统分享暂时不可用，请稍后再试。";
+      renderSettings();
+      toast("暂时无法导出 JSON 备份");
+      return;
+    }
 
     ui.settings.pendingImport = null;
-    ui.settings.backupStatus = "JSON 备份已导出。你也可以把它重新导入到这个网页里。";
-    toast("JSON 备份已导出");
+    ui.settings.backupStatus = result === "shared"
+      ? "已打开系统分享。请选择“保存到文件”或发到你自己的云盘/聊天工具。"
+      : "JSON 备份已导出。你也可以把它重新导入到这个网页里。";
+    renderSettings();
+    toast(result === "shared" ? "请在系统分享里保存 JSON 备份" : "JSON 备份已导出");
+  }
+
+  async function exportBackupText() {
+    const snapshot = buildBackupSnapshot();
+    let result = "downloaded";
+
+    try {
+      result = await exportTextFile(
+        `心绪记录文字备份_${toDayKey(new Date())}.txt`,
+        buildBackupText(snapshot),
+        "text/plain;charset=utf-8",
+        {
+          dialogTitle: "导出文字备份",
+          shareText: "请保存这份可恢复的文字备份。"
+        }
+      );
+    } catch (_) {
+      ui.settings.backupStatus = "系统分享暂时不可用，请稍后再试。";
+      renderSettings();
+      toast("暂时无法导出文字备份");
+      return;
+    }
+
+    ui.settings.pendingImport = null;
+    ui.settings.backupStatus = result === "shared"
+      ? "已打开系统分享。保存这份文字备份后，也可以在别的设备里重新导入。"
+      : "文字备份已导出。它既能阅读，也可以重新导入恢复。";
+    renderSettings();
+    toast(result === "shared" ? "请在系统分享里保存文字备份" : "文字备份已导出");
   }
 
   function prepareBackupImport(input) {
@@ -4146,15 +4301,11 @@
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const parsed = JSON.parse(String(reader.result || ""));
-        const prepared = validateBackupImport(parsed, file.name);
-        ui.settings.pendingImport = prepared;
-        ui.settings.backupStatus = "文件校验通过。确认后会覆盖当前浏览器里的本地数据。";
-        renderSettings();
-        toast("导入文件已就绪");
+        const prepared = parseBackupImportText(String(reader.result || ""), file.name);
+        applyPreparedBackupImport(prepared, "文件校验通过。确认后会覆盖当前本地数据。", "导入文件已就绪");
       } catch (_) {
         ui.settings.pendingImport = null;
-        ui.settings.backupStatus = "这个文件不是从当前网页导出的 JSON 备份。";
+        ui.settings.backupStatus = "这个文件不是可恢复的 JSON / 文字备份。";
         renderSettings();
         toast("这个备份文件格式不正确。");
       } finally {
@@ -4163,6 +4314,36 @@
     };
 
     reader.readAsText(file, "utf-8");
+  }
+
+  function preparePastedBackupImport() {
+    const rawText = ui.settings.backupImportText.trim();
+    if (!rawText) {
+      toast("先粘贴备份内容。");
+      return;
+    }
+
+    try {
+      const prepared = parseBackupImportText(rawText, "粘贴内容");
+      applyPreparedBackupImport(prepared, "粘贴内容校验通过。确认后会覆盖当前本地数据。", "粘贴内容已就绪");
+    } catch (_) {
+      ui.settings.pendingImport = null;
+      ui.settings.backupStatus = "这段内容不是可恢复的 JSON / 文字备份。";
+      renderSettings();
+      toast("粘贴内容格式不正确。");
+    }
+  }
+
+  function clearBackupImportText() {
+    ui.settings.backupImportText = "";
+    clearPendingBackupImport("已清空粘贴内容。");
+  }
+
+  function applyPreparedBackupImport(prepared, statusText, successToast) {
+    ui.settings.pendingImport = prepared;
+    ui.settings.backupStatus = statusText;
+    renderSettings();
+    toast(successToast);
   }
 
   function confirmBackupImport() {
@@ -4181,6 +4362,7 @@
     ui.settings.projectId = "";
     ui.settings.drafts = createInitialSettingsDrafts();
     ui.settings.pendingImport = null;
+    ui.settings.backupImportText = "";
     ui.settings.backupStatus = "备份已经恢复。";
     renderApp();
     toast("备份已经恢复");
@@ -4220,8 +4402,46 @@
       payload,
       recordCount: payload.records.length,
       projectCount: payload.projects.length,
-      tagCount: payload.projects.reduce((sum, project) => sum + ((project.tags || []).length), 0)
+      tagCount: countProjectTags(payload.projects),
+      formatLabel: "JSON 完整备份"
     };
+  }
+
+  function parseBackupImportText(rawText, fileName) {
+    const text = String(rawText || "").trim();
+    if (!text) throw new Error("invalid-backup");
+
+    try {
+      return validateBackupImport(JSON.parse(text), fileName);
+    } catch (_) {
+      // Ignore and continue to text backup parsing.
+    }
+
+    const embeddedSnapshot = extractEmbeddedBackupSnapshot(text);
+    if (!embeddedSnapshot) {
+      throw new Error("invalid-backup");
+    }
+
+    const prepared = validateBackupImport(embeddedSnapshot, fileName);
+    prepared.formatLabel = "文字完整备份";
+    return prepared;
+  }
+
+  function extractEmbeddedBackupSnapshot(text) {
+    const startIndex = text.indexOf(BACKUP_TEXT_START_MARKER);
+    const endIndex = text.indexOf(BACKUP_TEXT_END_MARKER);
+    if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) return null;
+
+    const encoded = text
+      .slice(startIndex + BACKUP_TEXT_START_MARKER.length, endIndex)
+      .trim();
+    if (!encoded) return null;
+
+    try {
+      return JSON.parse(decodeBackupSnapshot(encoded));
+    } catch (_) {
+      return null;
+    }
   }
 
   function refreshServiceWorker() {
@@ -4764,8 +4984,10 @@
     try {
       const raw = localStorage.getItem(DATA.storageKey);
       if (!raw) return initialState();
+      bootState.hadLocalState = true;
       return normalizeState(JSON.parse(raw));
     } catch (_) {
+      bootState.localStateError = true;
       return initialState();
     }
   }
@@ -5059,6 +5281,7 @@
 
   function saveState() {
     localStorage.setItem(DATA.storageKey, JSON.stringify(state));
+    scheduleNativeShadowBackup();
   }
 
   function createInitialSettingsDrafts() {
@@ -5114,7 +5337,8 @@
         projectId: "",
         drafts: createInitialSettingsDrafts(),
         backupStatus: "",
-        pendingImport: null
+        pendingImport: null,
+        backupImportText: ""
       },
       export: {
         from: "",
@@ -5651,14 +5875,165 @@
     return camelCase.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
   }
 
+  function countProjectTags(projects) {
+    return (projects || []).reduce((sum, project) => sum + ((project && project.tags) ? project.tags.length : 0), 0);
+  }
+
+  function encodeBackupSnapshot(snapshot) {
+    return bytesToBase64(new TextEncoder().encode(JSON.stringify(snapshot)));
+  }
+
+  function decodeBackupSnapshot(encoded) {
+    return new TextDecoder().decode(base64ToBytes(encoded));
+  }
+
+  function bytesToBase64(bytes) {
+    let binary = "";
+    bytes.forEach((value) => {
+      binary += String.fromCharCode(value);
+    });
+    return btoa(binary);
+  }
+
+  function base64ToBytes(value) {
+    const normalized = String(value || "").replace(/\s+/g, "");
+    const binary = atob(normalized);
+    return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  }
+
+  function getCapacitorBridge() {
+    return window.Capacitor || null;
+  }
+
+  function isNativeApp() {
+    const bridge = getCapacitorBridge();
+    return Boolean(bridge && typeof bridge.isNativePlatform === "function" && bridge.isNativePlatform());
+  }
+
+  function getCapacitorPlugin(name) {
+    const bridge = getCapacitorBridge();
+    if (!bridge || !bridge.Plugins) return null;
+    return bridge.Plugins[name] || null;
+  }
+
+  function hasNativeFileShareSupport() {
+    const bridge = getCapacitorBridge();
+    if (!bridge || typeof bridge.isPluginAvailable !== "function" || !isNativeApp()) return false;
+    return bridge.isPluginAvailable("Filesystem") && bridge.isPluginAvailable("Share");
+  }
+
+  function hasNativeFilesystemSupport() {
+    const bridge = getCapacitorBridge();
+    if (!bridge || typeof bridge.isPluginAvailable !== "function" || !isNativeApp()) return false;
+    return bridge.isPluginAvailable("Filesystem");
+  }
+
+  function sanitizeBackupPath(name) {
+    return String(name || "backup.txt").replace(/[\\/:*?"<>|]+/g, "-");
+  }
+
+  async function exportTextFile(filename, content, type, options = {}) {
+    if (hasNativeFileShareSupport()) {
+      await shareNativeTextFile(filename, content, options);
+      return "shared";
+    }
+
+    downloadBlob(filename, content, type);
+    return "downloaded";
+  }
+
+  async function shareNativeTextFile(filename, content, options = {}) {
+    const Filesystem = getCapacitorPlugin("Filesystem");
+    const Share = getCapacitorPlugin("Share");
+    if (!Filesystem || !Share) {
+      throw new Error("native-share-unavailable");
+    }
+
+    if (typeof Share.canShare === "function") {
+      const availability = await Share.canShare();
+      if (!availability || availability.value === false) {
+        throw new Error("native-share-unavailable");
+      }
+    }
+
+    const safeName = sanitizeBackupPath(filename);
+    const result = await Filesystem.writeFile({
+      path: `exports/${Date.now()}-${safeName}`,
+      data: content,
+      directory: "CACHE",
+      encoding: "utf8",
+      recursive: true
+    });
+
+    await Share.share({
+      title: options.dialogTitle || safeName,
+      text: options.shareText || "",
+      files: [result.uri],
+      dialogTitle: options.dialogTitle || safeName
+    });
+  }
+
+  function scheduleNativeShadowBackup() {
+    if (!hasNativeFilesystemSupport()) return;
+
+    clearTimeout(nativeShadowBackupTimer);
+    nativeShadowBackupTimer = setTimeout(() => {
+      void persistNativeShadowBackup();
+    }, 250);
+  }
+
+  async function persistNativeShadowBackup() {
+    const Filesystem = getCapacitorPlugin("Filesystem");
+    if (!Filesystem) return;
+
+    try {
+      await Filesystem.writeFile({
+        path: NATIVE_SHADOW_BACKUP_PATH,
+        data: JSON.stringify(buildBackupSnapshot()),
+        directory: "DATA",
+        encoding: "utf8",
+        recursive: true
+      });
+    } catch (_) {
+      // Ignore shadow backup failures and keep the app usable.
+    }
+  }
+
+  async function tryRestoreNativeShadowBackup() {
+    const Filesystem = getCapacitorPlugin("Filesystem");
+    if (!Filesystem) return;
+
+    try {
+      const stored = await Filesystem.readFile({
+        path: NATIVE_SHADOW_BACKUP_PATH,
+        directory: "DATA",
+        encoding: "utf8"
+      });
+      const prepared = parseBackupImportText(String(stored.data || ""), "应用内部备份");
+      if (!prepared.recordCount && !prepared.tagCount && prepared.projectCount <= BUILTIN_PROJECTS.length) return;
+
+      const nextState = normalizeState(prepared.payload);
+      overwriteState(nextState);
+      seedExportDefaults();
+      ensureExportSelectionValid();
+      ui.settings.backupStatus = "已从应用内部备份恢复本地数据。";
+      renderApp();
+      toast("已从应用内部备份恢复");
+    } catch (_) {
+      // No internal backup is okay on first install.
+    }
+  }
+
   function downloadBlob(filename, content, type) {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = filename;
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function toast(message) {
