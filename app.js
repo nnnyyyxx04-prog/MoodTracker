@@ -1598,6 +1598,9 @@
 
     if (canReuse) {
       current.label = trimmed;
+      if (isSomaticCreatorContext(context) && !current.bodyArea) {
+        current.bodyArea = getSomaticSuggestedBodyArea(trimmed);
+      }
       return current;
     }
 
@@ -1645,10 +1648,14 @@
     }
 
     if (isSomaticCreatorContext(context)) {
+      const bodyArea = previous && previous.bodyArea
+        ? previous.bodyArea
+        : getSomaticSuggestedBodyArea(label);
       return {
         label,
         projectId: "somatic",
-        color: previous && previous.color ? previous.color : getSomaticRecommendedColor(label)
+        bodyArea,
+        color: previous && previous.color ? previous.color : getSomaticRecommendedColor(label, bodyArea)
       };
     }
 
@@ -1728,6 +1735,40 @@
             ${creatorColorSwatchesMarkup(context, palette, draft.color)}
             <p class="field-subtle">${escapeHtml(getEmotionCategoryHelperText(draft.categoryId))}</p>
           </div>
+        ` : isSomaticCreatorContext(context) ? `
+          <div class="form-block inline-gap">
+            <label class="field-label">所属身体部位</label>
+            <div class="choice-grid creator-body-area-grid">
+              ${DATA.bodyAreas.map((area) => bodyAreaChoiceChipMarkup({
+                label: area,
+                color: getBodyAreaColors()[area] || "#5a84c6",
+                active: draft.bodyArea === area,
+                dataset: {
+                  creatorAction: "choose-body-area",
+                  creatorContext: context,
+                  bodyArea: area
+                }
+              })).join("")}
+            </div>
+          </div>
+          <div class="input-grid two-up">
+            <div class="form-block inline-gap">
+              <label class="field-label" for="creator-color-${context}">标签颜色</label>
+              <input
+                id="creator-color-${context}"
+                type="color"
+                value="${safeColor(draft.color)}"
+                data-creator-context="${context}"
+                data-creator-field="color"
+                aria-label="标签颜色"
+              >
+            </div>
+          </div>
+          <div class="form-block inline-gap">
+            <label class="field-label">推荐颜色</label>
+            ${creatorColorSwatchesMarkup(context, palette, draft.color)}
+            <p class="field-subtle">${escapeHtml(getSomaticBodyAreaHelperText(draft.bodyArea))}</p>
+          </div>
         ` : `
           <div class="form-block inline-gap">
             <label class="field-label" for="creator-color-${context}">${context === "other-project" ? "项目颜色" : "标签颜色"}</label>
@@ -1773,13 +1814,34 @@
     `;
   }
 
+  function bodyAreaChoiceChipMarkup({ label, color, active, dataset }) {
+    const attrs = Object.entries(dataset || {})
+      .map(([key, value]) => `data-${toDataAttr(key)}="${escapeHtml(String(value))}"`)
+      .join(" ");
+    const areaColor = safeColor(color, "#5a84c6");
+    const areaSoft = mixColor(areaColor, "#ffffff", 0.88);
+    const areaStrong = mixColor(areaColor, "#ffffff", 0.72);
+
+    return `
+      <button
+        type="button"
+        class="choice-chip creator-area-chip ${active ? "active" : ""}"
+        ${attrs}
+        style="--area-color:${areaColor};--area-soft:${areaSoft};--area-strong:${areaStrong}"
+      >
+        <span class="tag-dot" style="--dot-color:${areaColor}"></span>
+        <span>${escapeHtml(label)}</span>
+      </button>
+    `;
+  }
+
   function getCreatorPalette(context, draft) {
     if (isEmotionCreatorContext(context)) {
       return getEmotionCategoryPalette(draft.categoryId);
     }
 
     if (isSomaticCreatorContext(context)) {
-      return getSomaticColorPalette(draft && draft.label);
+      return getSomaticColorPalette(draft && draft.label, draft && draft.bodyArea);
     }
 
     if (context === "other-project") {
@@ -1811,7 +1873,7 @@
     }
 
     if (isSomaticCreatorContext(context)) {
-      return `为“${draft.label}”挑一个更容易识别的颜色。`;
+      return `先为“${draft.label}”选一个身体部位，系统会推荐对应色系。`;
     }
 
     if (context === "other-project") {
@@ -1873,6 +1935,13 @@
 
     if (actionButton.dataset.creatorAction === "choose-color") {
       draft.color = safeColor(actionButton.dataset.color, draft.color);
+      renderCreatorContext(context);
+      return;
+    }
+
+    if (actionButton.dataset.creatorAction === "choose-body-area") {
+      draft.bodyArea = actionButton.dataset.bodyArea || "";
+      draft.color = getSomaticRecommendedColor(draft.label, draft.bodyArea);
       renderCreatorContext(context);
       return;
     }
@@ -1966,6 +2035,7 @@
       draft.label,
       {
         categoryId: draft.categoryId || null,
+        bodyArea: draft.bodyArea || null,
         color: draft.color
       }
     );
@@ -2002,7 +2072,7 @@
       const draft = getLibraryTagDraft(project.id);
       const recommendedColors = project.id === "emotion"
         ? getEmotionCategoryPalette(draft.categoryId)
-        : getSomaticColorPalette(draft.name);
+        : getSomaticColorPalette(draft.name, draft.bodyArea);
 
       content = `
         <div class="manager-panel">
@@ -2045,6 +2115,21 @@
               <p class="field-subtle">${escapeHtml(getEmotionCategoryHelperText(draft.categoryId))}</p>
             </div>
           ` : `
+            <div class="form-block inline-gap">
+              <label class="field-label">所属身体部位</label>
+              <div class="choice-grid creator-body-area-grid">
+                ${DATA.bodyAreas.map((area) => bodyAreaChoiceChipMarkup({
+                  label: area,
+                  color: getBodyAreaColors()[area] || "#5a84c6",
+                  active: draft.bodyArea === area,
+                  dataset: {
+                    settingsAction: "choose-library-body-area",
+                    projectId: project.id,
+                    bodyArea: area
+                  }
+                })).join("")}
+              </div>
+            </div>
             <div class="input-grid two-up">
               <div class="form-block inline-gap">
                 <label class="field-label" for="library-tag-color">标签颜色</label>
@@ -2059,7 +2144,7 @@
                 action: "choose-library-tag-color",
                 dataset: { projectId: project.id }
               })}
-              <p class="field-subtle">推荐使用低刺激、易区分的颜色，方便你在记录和回看时快速识别。</p>
+              <p class="field-subtle">${escapeHtml(getSomaticBodyAreaHelperText(draft.bodyArea))}</p>
             </div>
           `}
           <div class="button-row">
@@ -2337,6 +2422,8 @@
       const count = usage.tagById.get(tag.id) || usage.tagByLabel.get(normalizeLabel(tag.label)) || 0;
       const meta = tag.categoryName
         ? `${tag.categoryName}${tag.groupLabel ? ` · ${tag.groupLabel}` : ""}`
+        : (project.id === "somatic" && tag.bodyArea)
+          ? `身体部位 · ${tag.bodyArea}`
         : "自定义";
 
       return `
@@ -2518,13 +2605,14 @@
         context,
         type: "tag",
         title: tag.label,
-        meta: `${tag.categoryName || "参考词"}${tag.groupLabel ? ` · ${tag.groupLabel}` : ""}`,
+        meta: `${tag.categoryName || "参考词"}${tag.groupLabel ? ` · ${tag.groupLabel}` : (tag.bodyArea ? ` · ${tag.bodyArea}` : "")}`,
         dotColor: tag.color,
         projectId,
         referenceLabel: tag.label,
         referenceCategoryId: tag.categoryId || "",
         referenceCategoryName: tag.categoryName || "",
-        referenceGroupLabel: tag.groupLabel || ""
+        referenceGroupLabel: tag.groupLabel || "",
+        referenceBodyArea: tag.bodyArea || ""
       }));
     });
 
@@ -2547,7 +2635,8 @@
     referenceLabel,
     referenceCategoryId,
     referenceCategoryName,
-    referenceGroupLabel
+    referenceGroupLabel,
+    referenceBodyArea
   }) {
     const dataset = [
       `data-suggestion-type="${type}"`,
@@ -2562,6 +2651,7 @@
     if (referenceCategoryId) dataset.push(`data-reference-category-id="${escapeHtml(referenceCategoryId)}"`);
     if (referenceCategoryName) dataset.push(`data-reference-category-name="${escapeHtml(referenceCategoryName)}"`);
     if (referenceGroupLabel) dataset.push(`data-reference-group-label="${escapeHtml(referenceGroupLabel)}"`);
+    if (referenceBodyArea) dataset.push(`data-reference-body-area="${escapeHtml(referenceBodyArea)}"`);
 
     return `
       <button
@@ -2969,7 +3059,8 @@
         label: dataset.referenceLabel,
         categoryId: dataset.referenceCategoryId || null,
         categoryName: dataset.referenceCategoryName || null,
-        groupLabel: dataset.referenceGroupLabel || null
+        groupLabel: dataset.referenceGroupLabel || null,
+        bodyArea: dataset.referenceBodyArea || null
       });
       tagId = createdTag ? createdTag.id : "";
     } else if (dataset.createLabel) {
@@ -3195,6 +3286,14 @@
     if (action === "choose-library-tag-color") {
       const draft = getLibraryTagDraft(actionButton.dataset.projectId);
       draft.color = safeColor(actionButton.dataset.color, draft.color);
+      renderSettings();
+      return;
+    }
+
+    if (action === "choose-library-body-area") {
+      const draft = getLibraryTagDraft(actionButton.dataset.projectId);
+      draft.bodyArea = actionButton.dataset.bodyArea || "";
+      draft.color = getSomaticRecommendedColor(draft.name, draft.bodyArea);
       renderSettings();
       return;
     }
@@ -3557,6 +3656,7 @@
 
     ui.settings.drafts.library.somatic = {
       name: "",
+      bodyArea: "",
       color: getSomaticRecommendedColor("")
     };
   }
@@ -3568,6 +3668,23 @@
 
     const reference = findReferenceTagByLabel(projectId, label);
     if (reference) {
+      if (projectId === "somatic") {
+        if (!opts.bodyArea && !opts.color) {
+          return ensureReferenceTag(projectId, reference);
+        }
+
+        const bodyArea = opts.bodyArea || reference.bodyArea || null;
+        return ensureTag(
+          projectId,
+          label,
+          opts.color || getSomaticRecommendedColor(label, bodyArea),
+          {
+            bodyArea,
+            categoryName: reference.categoryName || null
+          }
+        );
+      }
+
       if (!opts.categoryId && !opts.color) {
         return ensureReferenceTag(projectId, reference);
       }
@@ -3603,6 +3720,17 @@
       );
     }
 
+    if (projectId === "somatic") {
+      return ensureTag(
+        projectId,
+        label,
+        opts.color || getSomaticRecommendedColor(label, opts.bodyArea || null),
+        {
+          bodyArea: opts.bodyArea || null
+        }
+      );
+    }
+
     const project = getProject(projectId);
     return ensureTag(
       projectId,
@@ -3625,6 +3753,7 @@
       reference.label,
       reference.color || resolvedColor || project.color,
       {
+        bodyArea: reference.bodyArea || null,
         categoryId: reference.categoryId || null,
         categoryName: reference.categoryName || null,
         groupLabel: reference.groupLabel || null
@@ -3864,6 +3993,7 @@
 
     ensureUserFacingTag(projectId, label, {
       categoryId: projectId === "emotion" ? draft.categoryId : null,
+      bodyArea: projectId === "somatic" ? draft.bodyArea : null,
       color: draft.color
     });
 
@@ -4807,8 +4937,12 @@
       return currentColor;
     }
 
-    if (projectId === "somatic" && findReferenceTagByLabel("somatic", label)) {
-      const canonical = getSomaticRecommendedColor(label);
+    if (projectId === "somatic") {
+      const reference = findReferenceTagByLabel("somatic", label);
+      const canonical = getSomaticRecommendedColor(
+        label,
+        (extras && extras.bodyArea) || (reference && reference.bodyArea) || null
+      );
       if (!storedColor || currentColor === normalizedFallback || currentColor === "#5d7fca") {
         return canonical;
       }
@@ -4831,6 +4965,7 @@
         id: tag.id,
         label: tag.label,
         color: getSomaticReferenceColor(tag),
+        bodyArea: getSomaticReferenceBodyArea(tag),
         categoryId: null,
         categoryName: "躯体参考",
         groupLabel: null
@@ -5083,6 +5218,10 @@
   }
 
   function sanitizeTag(tag, fallbackColor, projectId) {
+    const bodyArea = projectId === "somatic"
+      ? (tag.bodyArea || getSomaticSuggestedBodyArea(tag.label || ""))
+      : null;
+
     return {
       id: tag.id || createId("tag"),
       label: String(tag.label || "未命名标签").trim(),
@@ -5091,12 +5230,14 @@
         String(tag.label || "未命名标签").trim(),
         tag.color,
         {
+          bodyArea,
           categoryId: tag.categoryId || null,
           groupLabel: tag.groupLabel || null
         },
         fallbackColor || "#4f8f8b"
       ),
       builtin: Boolean(tag.builtin),
+      bodyArea,
       categoryId: tag.categoryId || null,
       categoryName: tag.categoryName || null,
       groupLabel: tag.groupLabel || null
@@ -5122,6 +5263,7 @@
           ));
 
           if (existing) {
+            existing.bodyArea = existing.bodyArea || item.bodyArea || null;
             existing.categoryId = existing.categoryId || item.categoryId || null;
             existing.categoryName = existing.categoryName || item.categoryName || null;
             existing.groupLabel = existing.groupLabel || item.groupLabel || null;
@@ -5130,6 +5272,7 @@
               existing.label,
               existing.color || item.color,
               {
+                bodyArea: existing.bodyArea || item.bodyArea || null,
                 categoryId: existing.categoryId || item.categoryId || null,
                 groupLabel: existing.groupLabel || item.groupLabel || null
               },
@@ -5146,12 +5289,14 @@
               item.label,
               item.color,
               {
+                bodyArea: item.bodyArea || null,
                 categoryId: item.categoryId || null,
                 groupLabel: item.groupLabel || null
               },
               project.color
             ),
             builtin: false,
+            bodyArea: item.bodyArea || null,
             categoryId: item.categoryId || null,
             categoryName: item.categoryName || null,
             groupLabel: item.groupLabel || null
@@ -5212,11 +5357,13 @@
                   String(item.label || ""),
                   item.color,
                   {
+                    bodyArea: item.bodyArea || null,
                     categoryId: item.categoryId || null,
                     groupLabel: item.groupLabel || null
                   },
                   (getProjectFromList(projectList, entry.projectId) && getProjectFromList(projectList, entry.projectId).color) || "#4f8f8b"
                 ),
+                bodyArea: item.bodyArea || null,
                 categoryId: item.categoryId || null,
                 categoryName: item.categoryName || null,
                 groupLabel: item.groupLabel || null,
@@ -5315,6 +5462,7 @@
         },
         somatic: {
           name: "",
+          bodyArea: "",
           color: getSomaticRecommendedColor("")
         }
       },
@@ -5508,6 +5656,7 @@
       label: String(label).trim(),
       color: safeColor(color, project.color),
       builtin: false,
+      bodyArea: extras && extras.bodyArea || null,
       categoryId: extras && extras.categoryId || null,
       categoryName: extras && extras.categoryName || null,
       groupLabel: extras && extras.groupLabel || null
@@ -5526,6 +5675,7 @@
       tagId: tag.id,
       label: tag.label,
       color: safeColor(tag.color, project.color),
+      bodyArea: tag.bodyArea || null,
       categoryId: tag.categoryId || null,
       categoryName: tag.categoryName || null,
       groupLabel: tag.groupLabel || null,
@@ -5649,26 +5799,26 @@
     const bodyAreaColors = getBodyAreaColors();
 
     return {
-      head: getSuggestedPaletteForColor(bodyAreaColors["头部"] || "#6c84d9"),
-      eyes: getSuggestedPaletteForColor(bodyAreaColors["眼睛"] || "#7a74d6"),
-      throat: getSuggestedPaletteForColor(bodyAreaColors["喉咙"] || "#5f84c6"),
-      chest: getSuggestedPaletteForColor(bodyAreaColors["胸口"] || "#d66761"),
-      heart: getSuggestedPaletteForColor(bodyAreaColors["心口"] || "#d95b7c"),
-      gut: getSuggestedPaletteForColor(bodyAreaColors["胃部"] || "#d9914e"),
-      abdomen: getSuggestedPaletteForColor(bodyAreaColors["腹部"] || "#cc9b52"),
-      shoulders: getSuggestedPaletteForColor(bodyAreaColors["肩颈"] || "#5b9c8d"),
-      limbs: getSuggestedPaletteForColor(bodyAreaColors["手臂"] || "#5f9c6f"),
-      legs: getSuggestedPaletteForColor(bodyAreaColors["腿部"] || "#6ea0a6"),
-      wholeBody: getSuggestedPaletteForColor(bodyAreaColors["全身"] || "#8b7ca8"),
+      "头部": getSuggestedPaletteForColor(bodyAreaColors["头部"] || "#6c84d9"),
+      "眼睛": getSuggestedPaletteForColor(bodyAreaColors["眼睛"] || "#7a74d6"),
+      "喉咙": getSuggestedPaletteForColor(bodyAreaColors["喉咙"] || "#5f84c6"),
+      "胸口": getSuggestedPaletteForColor(bodyAreaColors["胸口"] || "#d66761"),
+      "心口": getSuggestedPaletteForColor(bodyAreaColors["心口"] || "#d95b7c"),
+      "胃部": getSuggestedPaletteForColor(bodyAreaColors["胃部"] || "#d9914e"),
+      "腹部": getSuggestedPaletteForColor(bodyAreaColors["腹部"] || "#cc9b52"),
+      "肩颈": getSuggestedPaletteForColor(bodyAreaColors["肩颈"] || "#5b9c8d"),
+      "手臂": getSuggestedPaletteForColor(bodyAreaColors["手臂"] || "#5f9c6f"),
+      "腿部": getSuggestedPaletteForColor(bodyAreaColors["腿部"] || "#6ea0a6"),
+      "全身": getSuggestedPaletteForColor(bodyAreaColors["全身"] || "#8b7ca8"),
       default: getSuggestedPaletteForColor("#5a84c6")
     };
   }
 
-  function getSomaticPaletteKey(label) {
+  function getSomaticSuggestedBodyArea(label) {
     const text = normalizeLabel(label || "");
 
-    if (!text) return "default";
-    if (text.includes("眼") || text.includes("视线") || text.includes("视野")) return "eyes";
+    if (!text) return "";
+    if (text.includes("眼") || text.includes("视线") || text.includes("视野")) return "眼睛";
 
     if (
       text.includes("头")
@@ -5679,7 +5829,7 @@
       || text.includes("睡不着")
       || text.includes("昏沉")
     ) {
-      return "head";
+      return "头部";
     }
 
     if (
@@ -5690,11 +5840,11 @@
       || text.includes("窒息")
       || text.includes("哽")
     ) {
-      return "throat";
+      return "喉咙";
     }
 
-    if (text.includes("心") || text.includes("心慌") || text.includes("心悸")) return "heart";
-    if (text.includes("胸") || text.includes("压") || text.includes("闷")) return "chest";
+    if (text.includes("心") || text.includes("心慌") || text.includes("心悸")) return "心口";
+    if (text.includes("胸") || text.includes("压") || text.includes("闷")) return "胸口";
 
     if (
       text.includes("胃")
@@ -5703,7 +5853,7 @@
       || text.includes("食欲")
       || text.includes("想吐")
     ) {
-      return "gut";
+      return "胃部";
     }
 
     if (
@@ -5713,7 +5863,7 @@
       || text.includes("胀")
       || text.includes("堵")
     ) {
-      return "abdomen";
+      return "腹部";
     }
 
     if (
@@ -5724,7 +5874,7 @@
       || text.includes("紧绷")
       || text.includes("僵")
     ) {
-      return "shoulders";
+      return "肩颈";
     }
 
     if (
@@ -5734,10 +5884,10 @@
       || text.includes("抖")
       || text.includes("肌肉")
     ) {
-      return "limbs";
+      return "手臂";
     }
 
-    if (text.includes("腿") || text.includes("脚") || text.includes("站不稳")) return "legs";
+    if (text.includes("腿") || text.includes("脚") || text.includes("站不稳")) return "腿部";
 
     if (
       text.includes("全身")
@@ -5747,26 +5897,38 @@
       || text.includes("麻木")
       || text.includes("虚")
     ) {
-      return "wholeBody";
+      return "全身";
     }
 
-    return "default";
+    return "";
   }
 
-  function getSomaticColorPalette(label) {
+  function getSomaticColorPalette(label, bodyArea) {
     const presets = getSomaticPalettePresets();
-    const key = getSomaticPaletteKey(label);
+    const key = bodyArea || getSomaticSuggestedBodyArea(label);
     return presets[key] || presets.default;
   }
 
-  function getSomaticRecommendedColor(label) {
-    const palette = getSomaticColorPalette(label);
+  function getSomaticRecommendedColor(label, bodyArea) {
+    const palette = getSomaticColorPalette(label, bodyArea);
     return palette[3] || palette[2] || palette[0] || "#5a84c6";
+  }
+
+  function getSomaticReferenceBodyArea(tag) {
+    return (tag && tag.bodyArea) || getSomaticSuggestedBodyArea(tag && (tag.label || tag.id || ""));
   }
 
   function getSomaticReferenceColor(tag) {
     const label = tag && (tag.label || tag.id || "");
-    return getSomaticRecommendedColor(label);
+    return getSomaticRecommendedColor(label, getSomaticReferenceBodyArea(tag));
+  }
+
+  function getSomaticBodyAreaHelperText(bodyArea) {
+    if (!bodyArea) {
+      return "先选一个身体部位，系统会推荐对应色系；你仍然可以再手动调整。";
+    }
+
+    return `当前色系：${bodyArea}。后续在首页、引导页和最近记录里都会沿用这组颜色。`;
   }
 
   function getEmotionCategoryHelperText(categoryId) {
