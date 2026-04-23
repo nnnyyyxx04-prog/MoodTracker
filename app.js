@@ -23,6 +23,19 @@
     disgust: { emoji: "⚪️", english: "Disgust" },
     sadness: { emoji: "🔵", english: "Sadness" }
   };
+  const BODY_AREA_META = {
+    "头部": { emoji: "🔵" },
+    "眼睛": { emoji: "🟣" },
+    "喉咙": { emoji: "🔵" },
+    "胸口": { emoji: "🔴" },
+    "心口": { emoji: "🩷" },
+    "胃部": { emoji: "🟠" },
+    "腹部": { emoji: "🟡" },
+    "肩颈": { emoji: "🟢" },
+    "手臂": { emoji: "🟢" },
+    "腿部": { emoji: "🔵" },
+    "全身": { emoji: "🟣" }
+  };
 
   const PROJECT_COLOR_PALETTE = [
     "#5a84c6",
@@ -1749,7 +1762,7 @@
                 <option value="">请选择身体部位</option>
                 ${DATA.bodyAreas.map((area) => `
                   <option value="${escapeHtml(area)}" ${draft.bodyArea === area ? "selected" : ""}>
-                    ${escapeHtml(area)}
+                    ${escapeHtml(getBodyAreaOptionLabel(area))}
                   </option>
                 `).join("")}
               </select>
@@ -2103,7 +2116,7 @@
                   <option value="">请选择身体部位</option>
                   ${DATA.bodyAreas.map((area) => `
                     <option value="${escapeHtml(area)}" ${draft.bodyArea === area ? "selected" : ""}>
-                      ${escapeHtml(area)}
+                      ${escapeHtml(getBodyAreaOptionLabel(area))}
                     </option>
                   `).join("")}
                 </select>
@@ -4840,6 +4853,14 @@
     if (meta.emoji) pieces.push(meta.emoji);
     pieces.push(category.label);
     if (meta.english) pieces.push(`(${meta.english})`);
+    return pieces.join(" ");
+  }
+
+  function getBodyAreaOptionLabel(area) {
+    const meta = BODY_AREA_META[area] || {};
+    const pieces = [];
+    if (meta.emoji) pieces.push(meta.emoji);
+    pieces.push(area);
     return pieces.join(" ");
   }
 
