@@ -4139,14 +4139,35 @@
   }
 
   function getFilteredExportRecords() {
+    const includeRecordLevelQuickAndGuided = ui.export.selectedProjectIds.includes("emotion")
+      || ui.export.selectedProjectIds.includes("somatic");
+
     return [...state.records]
       .filter((record) => record.day >= ui.export.from && record.day <= ui.export.to)
       .map((record) => ({
         ...record,
         projectEntries: record.projectEntries.filter((entry) => ui.export.selectedProjectIds.includes(entry.projectId))
       }))
-      .filter((record) => record.projectEntries.length)
+      .filter((record) => {
+        if (record.projectEntries.length) return true;
+        return shouldIncludeRecordLevelExport(record, includeRecordLevelQuickAndGuided);
+      })
       .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+  }
+
+  function shouldIncludeRecordLevelExport(record, includeRecordLevelQuickAndGuided) {
+    if (!includeRecordLevelQuickAndGuided) return false;
+    if (!record || record.source === "other") return false;
+    return hasRecordLevelExportContent(record);
+  }
+
+  function hasRecordLevelExportContent(record) {
+    return Boolean(
+      (record.bodyAreas && record.bodyAreas.length)
+      || String(record.eventText || "").trim()
+      || String(record.childhoodEcho || "").trim()
+      || String(record.note || "").trim()
+    );
   }
 
   function buildBackupSnapshot() {
@@ -4228,7 +4249,7 @@
 
       if (record.eventText) lines.push(`发生了什么：${record.eventText}`);
       if (record.childhoodEcho) lines.push(`旧日回声：${record.childhoodEcho}`);
-      if (record.note && record.source !== "other") lines.push(`备注：${record.note}`);
+      if (record.note && record.source !== "other") lines.push(`补充说明：${record.note}`);
 
       return lines.join("\n");
     });
