@@ -4335,31 +4335,54 @@
   }
 
   function buildBackupSnapshot() {
+    const payload = deepCopy(state);
+    const exportedAt = new Date().toISOString();
     return {
       format: "mood-tracker-backup",
-      exportedAt: new Date().toISOString(),
+      exportedAt,
       app: DATA.appName,
       version: 3,
-      payload: deepCopy(state)
+      summary: buildBackupSummary(payload),
+      readableText: buildBackupReadableText(payload, exportedAt),
+      payload
     };
   }
 
   function buildBackupText(snapshot) {
-    const sortedRecords = [...snapshot.payload.records].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
-    const readable = buildRecordTextDocument(sortedRecords, {
+    const readable = snapshot.readableText || buildBackupReadableText(snapshot.payload, snapshot.exportedAt);
+    const encodedSnapshot = encodeBackupSnapshot(snapshot);
+    return `${readable}\n\n${BACKUP_TEXT_START_MARKER}\n${encodedSnapshot}\n${BACKUP_TEXT_END_MARKER}`;
+  }
+
+  function buildBackupSummary(payload) {
+    return {
+      recordCount: Array.isArray(payload && payload.records) ? payload.records.length : 0,
+      projectCount: Array.isArray(payload && payload.projects) ? payload.projects.length : 0,
+      tagCount: countProjectTags(payload && payload.projects),
+      slotTemplateCount: Array.isArray(payload && payload.slotTemplates) ? payload.slotTemplates.length : 0
+    };
+  }
+
+  function buildBackupReadableText(payload, exportedAt) {
+    const sortedRecords = getSortedRecordList(payload && payload.records);
+    return buildRecordTextDocument(sortedRecords, {
       title: "心绪记录文字备份",
       timeframe: "完整备份",
-      exportedAt: snapshot.exportedAt,
-      projectNames: snapshot.payload.projects.map((project) => project.name).filter(Boolean),
+      exportedAt,
+      projectNames: Array.isArray(payload && payload.projects)
+        ? payload.projects.map((project) => project.name).filter(Boolean)
+        : [],
       extraSummary: [
-        `项目数量：${snapshot.payload.projects.length}`,
-        `标签数量：${countProjectTags(snapshot.payload.projects)}`,
+        `项目数量：${Array.isArray(payload && payload.projects) ? payload.projects.length : 0}`,
+        `标签数量：${countProjectTags(payload && payload.projects)}`,
         "这份 txt 同时附带完整恢复数据，可在设置里的“备份与恢复”中重新导入。"
       ],
       emptyMessage: "当前还没有记录。"
     });
-    const encodedSnapshot = encodeBackupSnapshot(snapshot);
-    return `${readable}\n\n${BACKUP_TEXT_START_MARKER}\n${encodedSnapshot}\n${BACKUP_TEXT_END_MARKER}`;
+  }
+
+  function getSortedRecordList(records) {
+    return [...(records || [])].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
   }
 
   function buildRecordTextDocument(records, options = {}) {
@@ -4487,7 +4510,7 @@
     reader.onload = () => {
       try {
         const prepared = parseBackupImportText(String(reader.result || ""), file.name);
-        applyPreparedBackupImport(prepared, "文件校验通过。确认后会覆盖当前本地数据。", "导入文件已就绪");
+        applyPreparedBackupImport(prepared, getPreparedImportStatusText(prepared, "文件"), "导入文件已就绪");
       } catch (_) {
         ui.settings.pendingImport = null;
         ui.settings.backupStatus = "这个文件不是可恢复的 JSON / 文字备份。";
@@ -4510,7 +4533,7 @@
 
     try {
       const prepared = parseBackupImportText(rawText, "粘贴内容");
-      applyPreparedBackupImport(prepared, "粘贴内容校验通过。确认后会覆盖当前本地数据。", "粘贴内容已就绪");
+      applyPreparedBackupImport(prepared, getPreparedImportStatusText(prepared, "粘贴内容"), "粘贴内容已就绪");
     } catch (_) {
       ui.settings.pendingImport = null;
       ui.settings.backupStatus = "这段内容不是可恢复的 JSON / 文字备份。";
@@ -4538,7 +4561,9 @@
       return;
     }
 
-    const nextState = normalizeState(prepared.payload);
+    const nextState = prepared.importMode === "merge"
+      ? buildMergedImportState(prepared.payload)
+      : normalizeState(prepared.payload);
     overwriteState(nextState);
     seedExportDefaults();
     ensureExportSelectionValid();
@@ -4548,9 +4573,9 @@
     ui.settings.drafts = createInitialSettingsDrafts();
     ui.settings.pendingImport = null;
     ui.settings.backupImportText = "";
-    ui.settings.backupStatus = "备份已经恢复。";
+    ui.settings.backupStatus = prepared.importMode === "merge" ? "记录已经合并导入。" : "备份已经恢复。";
     renderApp();
-    toast("备份已经恢复");
+    toast(prepared.importMode === "merge" ? "记录已经合并导入" : "备份已经恢复");
   }
 
   function clearPendingBackupImport(statusText) {
@@ -4561,35 +4586,24 @@
   }
 
   function validateBackupImport(parsed, fileName) {
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    const normalized = normalizeBackupImportShape(parsed);
+    if (!normalized) {
       throw new Error("invalid-backup");
     }
 
-    const isKnownBackup = parsed.format === "mood-tracker-backup"
-      || (parsed.app === DATA.appName && Object.prototype.hasOwnProperty.call(parsed, "payload"));
-    if (!isKnownBackup) {
-      throw new Error("invalid-backup");
-    }
-
-    const payload = parsed.payload;
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      throw new Error("invalid-backup");
-    }
-
+    const payload = normalized.payload;
     if (!Array.isArray(payload.records) || !Array.isArray(payload.projects) || !payload.settings) {
       throw new Error("invalid-backup");
     }
 
-    return {
+    return createPreparedBackupImport({
       fileName,
-      exportedAt: parsed.exportedAt || new Date().toISOString(),
-      version: parsed.version || 0,
+      exportedAt: normalized.exportedAt,
+      version: normalized.version,
       payload,
-      recordCount: payload.records.length,
-      projectCount: payload.projects.length,
-      tagCount: countProjectTags(payload.projects),
-      formatLabel: "JSON 完整备份"
-    };
+      formatLabel: normalized.formatLabel,
+      importMode: "replace"
+    });
   }
 
   function parseBackupImportText(rawText, fileName) {
@@ -4604,12 +4618,62 @@
 
     const embeddedSnapshot = extractEmbeddedBackupSnapshot(text);
     if (!embeddedSnapshot) {
-      throw new Error("invalid-backup");
+      return parsePlainTextRecordImport(text, fileName);
     }
 
     const prepared = validateBackupImport(embeddedSnapshot, fileName);
     prepared.formatLabel = "文字完整备份";
     return prepared;
+  }
+
+  function normalizeBackupImportShape(parsed) {
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+
+    if (
+      parsed.format === "mood-tracker-backup"
+      || (parsed.app === DATA.appName && Object.prototype.hasOwnProperty.call(parsed, "payload"))
+    ) {
+      return {
+        payload: parsed.payload,
+        exportedAt: parsed.exportedAt || new Date().toISOString(),
+        version: parsed.version || 0,
+        formatLabel: "JSON 完整备份"
+      };
+    }
+
+    if (Array.isArray(parsed.records) && Array.isArray(parsed.projects) && parsed.settings) {
+      return {
+        payload: parsed,
+        exportedAt: parsed.exportedAt || new Date().toISOString(),
+        version: parsed.version || 0,
+        formatLabel: "JSON 状态快照"
+      };
+    }
+
+    return null;
+  }
+
+  function createPreparedBackupImport({ fileName, exportedAt, version, payload, formatLabel, importMode }) {
+    return {
+      fileName,
+      exportedAt: exportedAt || new Date().toISOString(),
+      version: version || 0,
+      payload,
+      recordCount: Array.isArray(payload.records) ? payload.records.length : 0,
+      projectCount: Array.isArray(payload.projects) ? payload.projects.length : 0,
+      tagCount: countProjectTags(payload.projects),
+      formatLabel: formatLabel || "完整备份",
+      importMode: importMode || "replace"
+    };
+  }
+
+  function getPreparedImportStatusText(prepared, sourceLabelText) {
+    if (prepared.importMode === "merge") {
+      return `${sourceLabelText}校验通过。确认后会把这些记录合并到当前本地数据，不会覆盖现有设置和项目库。`;
+    }
+    return `${sourceLabelText}校验通过。确认后会覆盖当前本地数据。`;
   }
 
   function extractEmbeddedBackupSnapshot(text) {
@@ -4627,6 +4691,391 @@
     } catch (_) {
       return null;
     }
+  }
+
+  function parsePlainTextRecordImport(text, fileName) {
+    const blocks = String(text || "")
+      .split(/\n\s*\n+/)
+      .map((block) => block.trim())
+      .filter(Boolean);
+
+    const recordBlocks = blocks.filter((block) => /^\d+\.\s+\d{4}-\d{2}-\d{2}\s+.+\s+\d{2}:\d{2}$/m.test(block));
+    if (!recordBlocks.length) {
+      const declaredCount = extractPlainTextRecordCount(text);
+      if (declaredCount === 0) {
+        return createPreparedBackupImport({
+          fileName,
+          exportedAt: extractPlainTextExportedAt(text) || new Date().toISOString(),
+          version: 3,
+          payload: buildPlainTextImportPayload([]),
+          formatLabel: "文字记录导出",
+          importMode: "merge"
+        });
+      }
+      throw new Error("invalid-backup");
+    }
+
+    const records = recordBlocks
+      .map((block) => parsePlainTextRecordBlock(block))
+      .filter(Boolean);
+
+    const payload = buildPlainTextImportPayload(records);
+    return createPreparedBackupImport({
+      fileName,
+      exportedAt: extractPlainTextExportedAt(text) || new Date().toISOString(),
+      version: 3,
+      payload,
+      formatLabel: "文字记录导出",
+      importMode: "merge"
+    });
+  }
+
+  function parsePlainTextRecordBlock(block) {
+    const lines = String(block || "")
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!lines.length) return null;
+
+    const headMatch = lines[0].match(/^\d+\.\s+(\d{4}-\d{2}-\d{2})\s+(.+?)\s+(\d{2}:\d{2})$/);
+    if (!headMatch) return null;
+
+    const [, day, slotName, time] = headMatch;
+    const record = {
+      id: "",
+      createdAt: buildImportedCreatedAt(day, time),
+      day,
+      slotId: getSlotIdByName(slotName),
+      slotName,
+      source: "quick",
+      note: "",
+      eventText: "",
+      childhoodEcho: "",
+      bodyAreas: [],
+      projectEntries: []
+    };
+
+    lines.slice(1).forEach((line) => {
+      const pair = splitLabeledLine(line);
+      if (!pair) return;
+
+      const label = pair.label;
+      const value = pair.value;
+      if (!value) return;
+
+      if (label === "来源") {
+        record.source = parseSourceLabel(value);
+        return;
+      }
+
+      if (label === "身体部位") {
+        record.bodyAreas = splitTextItems(value);
+        return;
+      }
+
+      if (label === "发生了什么") {
+        record.eventText = value;
+        return;
+      }
+
+      if (label === "旧日回声") {
+        record.childhoodEcho = value;
+        return;
+      }
+
+      if (label === "补充说明") {
+        record.note = value;
+        return;
+      }
+
+      if (label.endsWith("备注")) {
+        const projectName = label.slice(0, -2).trim();
+        const existingEntry = record.projectEntries.find((entry) => entry.projectName === projectName);
+        if (existingEntry) {
+          existingEntry.note = value;
+        }
+        if (record.source === "other" && !record.note) {
+          record.note = value;
+        }
+        return;
+      }
+
+      const entry = parsePlainTextProjectEntry(label, value);
+      if (entry) {
+        record.projectEntries.push(entry);
+        if (record.source === "other" && entry.note && !record.note) {
+          record.note = entry.note;
+        }
+      }
+    });
+
+    record.id = createImportedRecordId(record);
+    return record;
+  }
+
+  function parsePlainTextProjectEntry(projectName, rawValue) {
+    const project = resolveImportedProjectInfo(projectName);
+    const tags = splitTextItems(rawValue)
+      .map((token) => parsePlainTextTagToken(project, token))
+      .filter(Boolean);
+
+    if (!tags.length) return null;
+
+    return {
+      projectId: project.id,
+      projectName: project.name,
+      projectColor: project.color,
+      entries: tags,
+      note: ""
+    };
+  }
+
+  function parsePlainTextTagToken(project, token) {
+    const raw = String(token || "").trim();
+    if (!raw) return null;
+
+    let label = raw;
+    let categoryName = null;
+    let categoryId = null;
+    let intensity = null;
+
+    const detailedMatch = raw.match(/^(.*?)[（(]([^()（）]+)[）)]$/);
+    if (detailedMatch) {
+      label = detailedMatch[1].trim();
+      splitDetailItems(detailedMatch[2]).forEach((part) => {
+        const value = String(part || "").trim();
+        if (!value) return;
+        const intensityMatch = value.match(/^强度\s*(\d)$/);
+        if (intensityMatch) {
+          intensity = Number(intensityMatch[1]);
+          return;
+        }
+        if (!categoryName) {
+          categoryName = value;
+        }
+      });
+    }
+
+    if (!label) return null;
+
+    if (project.id === "emotion") {
+      categoryId = findEmotionCategoryIdByName(categoryName) || inferEmotionCategoryIdFromLabel(label);
+      categoryName = categoryName || getEmotionReferenceCategoryLabel(categoryId);
+    }
+
+    const bodyArea = project.id === "somatic" ? inferSomaticBodyAreaFromLabel(label) : null;
+    const color = resolveCanonicalTagColor(
+      project.id,
+      label,
+      "",
+      {
+        categoryId,
+        categoryName,
+        bodyArea,
+        groupLabel: null
+      },
+      project.color
+    );
+
+    return {
+      tagId: "",
+      label,
+      color,
+      bodyArea,
+      categoryId,
+      categoryName: categoryName || null,
+      groupLabel: null,
+      intensity: project.id === "emotion" ? Number(intensity || 3) : null
+    };
+  }
+
+  function buildPlainTextImportPayload(records) {
+    const projects = deepCopy(BUILTIN_PROJECTS).map((project) => ({ ...project, tags: [] }));
+    const customProjects = new Map();
+
+    records.forEach((record) => {
+      (record.projectEntries || []).forEach((entry) => {
+        let project = projects.find((item) => item.id === entry.projectId);
+        if (!project) {
+          if (!customProjects.has(entry.projectId)) {
+            customProjects.set(entry.projectId, {
+              id: entry.projectId,
+              name: entry.projectName,
+              type: "custom",
+              builtin: false,
+              color: safeColor(entry.projectColor, pickProjectColor(entry.projectName)),
+              tags: []
+            });
+          }
+          project = customProjects.get(entry.projectId);
+        }
+
+        entry.projectName = project.name;
+        entry.projectColor = project.color;
+        entry.entries = (entry.entries || []).map((item) => {
+          const normalized = {
+            ...item,
+            color: resolveCanonicalTagColor(
+              project.id,
+              item.label,
+              item.color,
+              {
+                bodyArea: item.bodyArea || null,
+                categoryId: item.categoryId || null,
+                groupLabel: item.groupLabel || null
+              },
+              project.color
+            )
+          };
+
+          if (!project.tags.find((tag) => normalizeLabel(tag.label) === normalizeLabel(normalized.label))) {
+            project.tags.push({
+              id: normalized.tagId || createId(`${project.id}-tag`),
+              label: normalized.label,
+              color: normalized.color,
+              builtin: false,
+              bodyArea: normalized.bodyArea || null,
+              categoryId: normalized.categoryId || null,
+              categoryName: normalized.categoryName || null,
+              groupLabel: normalized.groupLabel || null
+            });
+          }
+
+          return normalized;
+        });
+      });
+    });
+
+    return {
+      version: state.version,
+      slotTemplates: deepCopy(state.slotTemplates),
+      settings: deepCopy(state.settings),
+      projects: [...projects, ...customProjects.values()],
+      records
+    };
+  }
+
+  function buildImportedCreatedAt(day, time) {
+    const [year, month, date] = String(day || "").split("-").map(Number);
+    const [hours, minutes] = String(time || "00:00").split(":").map(Number);
+    const value = new Date(year, (month || 1) - 1, date || 1, hours || 0, minutes || 0, 0, 0);
+    return Number.isNaN(value.getTime()) ? new Date().toISOString() : value.toISOString();
+  }
+
+  function splitLabeledLine(line) {
+    const match = String(line || "").match(/^(.+?)[：:]\s*(.*)$/);
+    if (!match) return null;
+    return {
+      label: match[1].trim(),
+      value: match[2].trim()
+    };
+  }
+
+  function splitTextItems(value) {
+    return String(value || "")
+      .split(/[、\/]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function splitDetailItems(value) {
+    return String(value || "")
+      .split(/[，,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function parseSourceLabel(value) {
+    const label = String(value || "").trim();
+    if (label === "引导记录") return "guided";
+    if (label === "其他项目记录") return "other";
+    return "quick";
+  }
+
+  function resolveImportedProjectInfo(projectName) {
+    const label = String(projectName || "").trim();
+    const emotionProject = getProject("emotion");
+    const somaticProject = getProject("somatic");
+
+    if (emotionProject && normalizeLabel(label) === normalizeLabel(emotionProject.name)) {
+      return {
+        id: emotionProject.id,
+        name: emotionProject.name,
+        color: emotionProject.color
+      };
+    }
+
+    if (somaticProject && normalizeLabel(label) === normalizeLabel(somaticProject.name)) {
+      return {
+        id: somaticProject.id,
+        name: somaticProject.name,
+        color: somaticProject.color
+      };
+    }
+
+    const existing = findCustomProjectByName(label);
+    if (existing) {
+      return {
+        id: existing.id,
+        name: existing.name,
+        color: existing.color
+      };
+    }
+
+    return {
+      id: `imported-project-${simpleHash(label || createId("project"))}`,
+      name: label || "未命名项目",
+      color: pickProjectColor(label || "custom")
+    };
+  }
+
+  function getSlotIdByName(slotName) {
+    const template = state.slotTemplates.find((item) => item.id === state.settings.activeSlotTemplateId) || DATA.slotTemplate;
+    const slot = (template.slots || []).find((item) => item.name === slotName);
+    return slot ? slot.id : "manual-import";
+  }
+
+  function findEmotionCategoryIdByName(categoryName) {
+    const normalized = normalizeLabel(categoryName);
+    if (!normalized) return "";
+    const category = (DATA.emotionCategories || []).find((item) => normalizeLabel(item.label) === normalized);
+    return category ? category.id : "";
+  }
+
+  function inferEmotionCategoryIdFromLabel(label) {
+    const existing = findTagByLabel("emotion", label);
+    if (existing && existing.categoryId) return existing.categoryId;
+    const reference = findReferenceTagByLabel("emotion", label);
+    return reference && reference.categoryId ? reference.categoryId : "";
+  }
+
+  function getEmotionReferenceCategoryLabel(categoryId) {
+    const category = getEmotionReferenceCategory(categoryId);
+    return category ? category.label : "";
+  }
+
+  function inferSomaticBodyAreaFromLabel(label) {
+    const existing = findTagByLabel("somatic", label);
+    if (existing && existing.bodyArea) return existing.bodyArea;
+    const reference = findReferenceTagByLabel("somatic", label);
+    return (reference && reference.bodyArea) || getSomaticSuggestedBodyArea(label);
+  }
+
+  function extractPlainTextExportedAt(text) {
+    const match = String(text || "").match(/导出时间[：:]\s*(\d{4})年(\d{1,2})月(\d{1,2})日\s+(\d{2}):(\d{2})/);
+    if (!match) return "";
+    const [, year, month, day, hours, minutes] = match.map(Number);
+    const value = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    return Number.isNaN(value.getTime()) ? "" : value.toISOString();
+  }
+
+  function extractPlainTextRecordCount(text) {
+    const match = String(text || "").match(/记录条数[：:]\s*(\d+)/);
+    return match ? Number(match[1]) : null;
+  }
+
+  function createImportedRecordId(record) {
+    return `imported-record-${simpleHash(getRecordImportKey(record))}`;
   }
 
   function refreshServiceWorker() {
@@ -6169,6 +6618,122 @@
 
   function countProjectTags(projects) {
     return (projects || []).reduce((sum, project) => sum + ((project && project.tags) ? project.tags.length : 0), 0);
+  }
+
+  function buildMergedImportState(payload) {
+    const imported = normalizeState(payload);
+    const mergedProjects = mergeImportedProjects(state.projects, imported.projects);
+    const mergedRecords = mergeImportedRecords(state.records, imported.records);
+
+    return normalizeState({
+      version: state.version,
+      slotTemplates: deepCopy(state.slotTemplates),
+      settings: deepCopy(state.settings),
+      projects: mergedProjects,
+      records: mergedRecords
+    });
+  }
+
+  function mergeImportedProjects(currentProjects, importedProjects) {
+    const result = deepCopy(currentProjects || []);
+
+    (importedProjects || []).forEach((incomingProject) => {
+      if (!incomingProject) return;
+
+      let target = result.find((project) => project.id === incomingProject.id);
+      if (!target) {
+        target = result.find((project) => normalizeLabel(project.name) === normalizeLabel(incomingProject.name));
+      }
+
+      if (!target) {
+        result.push(deepCopy(incomingProject));
+        return;
+      }
+
+      target.color = safeColor(target.color, incomingProject.color);
+      if (!Array.isArray(target.tags)) target.tags = [];
+
+      (incomingProject.tags || []).forEach((incomingTag) => {
+        const existingTag = target.tags.find((tag) => (
+          (incomingTag.id && tag.id === incomingTag.id)
+          || normalizeLabel(tag.label) === normalizeLabel(incomingTag.label)
+        ));
+
+        if (existingTag) {
+          existingTag.bodyArea = existingTag.bodyArea || incomingTag.bodyArea || null;
+          existingTag.categoryId = existingTag.categoryId || incomingTag.categoryId || null;
+          existingTag.categoryName = existingTag.categoryName || incomingTag.categoryName || null;
+          existingTag.groupLabel = existingTag.groupLabel || incomingTag.groupLabel || null;
+          existingTag.color = resolveCanonicalTagColor(
+            target.id,
+            existingTag.label,
+            existingTag.color || incomingTag.color,
+            {
+              bodyArea: existingTag.bodyArea || incomingTag.bodyArea || null,
+              categoryId: existingTag.categoryId || incomingTag.categoryId || null,
+              groupLabel: existingTag.groupLabel || incomingTag.groupLabel || null
+            },
+            target.color
+          );
+          return;
+        }
+
+        target.tags.push(deepCopy(incomingTag));
+      });
+    });
+
+    return result;
+  }
+
+  function mergeImportedRecords(currentRecords, importedRecords) {
+    const merged = [...(currentRecords || [])];
+    const seen = new Set(merged.map((record) => getRecordImportKey(record)));
+
+    (importedRecords || []).forEach((record) => {
+      const key = getRecordImportKey(record);
+      if (seen.has(key)) return;
+      merged.push(deepCopy(record));
+      seen.add(key);
+    });
+
+    return merged.sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+  }
+
+  function getRecordImportKey(record) {
+    return JSON.stringify({
+      createdAt: String(record.createdAt || "").slice(0, 16),
+      day: record.day || "",
+      source: record.source || "",
+      note: String(record.note || "").trim(),
+      eventText: String(record.eventText || "").trim(),
+      childhoodEcho: String(record.childhoodEcho || "").trim(),
+      bodyAreas: [...new Set(record.bodyAreas || [])].sort(),
+      projectEntries: (record.projectEntries || [])
+        .map((entry) => ({
+          projectId: entry.projectId || "",
+          projectName: entry.projectName || "",
+          note: String(entry.note || "").trim(),
+          entries: (entry.entries || [])
+            .map((item) => ({
+              label: item.label || "",
+              intensity: Number(item.intensity || 0),
+              categoryId: item.categoryId || "",
+              bodyArea: item.bodyArea || ""
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label, "zh-CN"))
+        }))
+        .sort((a, b) => (a.projectName || "").localeCompare(b.projectName || "", "zh-CN"))
+    });
+  }
+
+  function simpleHash(value) {
+    let hash = 0;
+    const text = String(value || "");
+    for (let index = 0; index < text.length; index += 1) {
+      hash = ((hash << 5) - hash) + text.charCodeAt(index);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(36);
   }
 
   function encodeBackupSnapshot(snapshot) {
