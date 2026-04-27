@@ -151,6 +151,11 @@ window.APP_DATA = {
       description: "统一管理情绪标签、躯体标签和其他自定义项目。"
     },
     {
+      id: "appearance",
+      title: "外观",
+      description: "夜间模式默认跟随系统，也可以手动固定浅色或深色。"
+    },
+    {
       id: "reminders",
       title: "提醒设置",
       description: "按四个时段提醒自己记录，帮助培养即时记录习惯。"

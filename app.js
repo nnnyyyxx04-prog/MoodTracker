@@ -69,11 +69,13 @@
   let deferredInstallPrompt = null;
   let reminderTimer = null;
   let nativeShadowBackupTimer = null;
+  let systemThemeMediaQuery = null;
 
   document.addEventListener("DOMContentLoaded", init);
 
   function init() {
     cacheEls();
+    initThemeHandling();
     seedExportDefaults();
     ensureExportSelectionValid();
     hydrateDownloadLinks();
@@ -303,6 +305,7 @@
   }
 
   function renderApp() {
+    applyTheme();
     renderHeader();
     renderNav();
     renderScreenVisibility();
@@ -1433,6 +1436,7 @@
 
   function settingsPageMarkup() {
     if (ui.settings.page === "root") return settingsRootMarkup();
+    if (ui.settings.page === "appearance") return settingsAppearanceMarkup();
     if (ui.settings.page === "export") return settingsExportMarkup();
     if (ui.settings.page === "library") return settingsLibraryMarkup();
     if (ui.settings.page === "project-detail") return settingsProjectDetailMarkup();
@@ -1463,6 +1467,29 @@
         </div>
       </div>
     `;
+  }
+
+  function settingsAppearanceMarkup() {
+    const themeMode = getThemeMode();
+    return settingsShellMarkup({
+      eyebrow: "外观",
+      title: "夜间模式",
+      description: "默认跟随系统，也可以手动固定浅色或深色。",
+      backTo: "root",
+      content: `
+        <div class="manager-panel">
+          <div class="form-block">
+            <label class="field-label">主题模式</label>
+            <div class="choice-grid">
+              ${themeModeButtonMarkup("auto", "自动")}
+              ${themeModeButtonMarkup("light", "浅色")}
+              ${themeModeButtonMarkup("dark", "深色")}
+            </div>
+          </div>
+          <p class="settings-note">${escapeHtml(getThemeModeHelperText(themeMode))}</p>
+        </div>
+      `
+    });
   }
 
   function settingsExportMarkup() {
@@ -2474,6 +2501,16 @@
     `;
   }
 
+  function themeModeButtonMarkup(mode, label) {
+    return choiceChipMarkup({
+      label,
+      active: getThemeMode() === mode,
+      dataset: {
+        settingsThemeMode: mode
+      }
+    });
+  }
+
   function reminderTimeFieldMarkup(slotId, label, value) {
     return `
       <div class="form-block">
@@ -3249,6 +3286,13 @@
     const exportChip = event.target.closest("[data-export-project-id]");
     if (exportChip) {
       toggleInArray(ui.export.selectedProjectIds, exportChip.dataset.exportProjectId);
+      renderSettings();
+      return;
+    }
+
+    const themeModeButton = event.target.closest("[data-settings-theme-mode]");
+    if (themeModeButton) {
+      updateThemeMode(themeModeButton.dataset.settingsThemeMode);
       renderSettings();
       return;
     }
@@ -4708,6 +4752,64 @@
     );
   }
 
+  function initThemeHandling() {
+    if (typeof window.matchMedia !== "function") return;
+
+    systemThemeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleThemeChange = () => {
+      if (getThemeMode() === "auto") {
+        applyTheme();
+        if (ui.settings.page === "appearance") {
+          renderSettings();
+        }
+      }
+    };
+
+    if (typeof systemThemeMediaQuery.addEventListener === "function") {
+      systemThemeMediaQuery.addEventListener("change", handleThemeChange);
+      return;
+    }
+
+    if (typeof systemThemeMediaQuery.addListener === "function") {
+      systemThemeMediaQuery.addListener(handleThemeChange);
+    }
+  }
+
+  function getThemeMode() {
+    const mode = state.settings && state.settings.themeMode;
+    return mode === "light" || mode === "dark" ? mode : "auto";
+  }
+
+  function resolveThemeMode() {
+    if (getThemeMode() === "light") return "light";
+    if (getThemeMode() === "dark") return "dark";
+    return systemThemeMediaQuery && systemThemeMediaQuery.matches ? "dark" : "light";
+  }
+
+  function applyTheme() {
+    const resolvedMode = resolveThemeMode();
+    document.documentElement.dataset.theme = resolvedMode;
+    document.documentElement.style.colorScheme = resolvedMode;
+
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) {
+      themeMeta.setAttribute("content", resolvedMode === "dark" ? "#171311" : "#f6eee4");
+    }
+  }
+
+  function updateThemeMode(mode) {
+    const nextMode = mode === "light" || mode === "dark" ? mode : "auto";
+    state.settings.themeMode = nextMode;
+    saveState();
+    applyTheme();
+  }
+
+  function getThemeModeHelperText(mode) {
+    if (mode === "light") return "当前固定为浅色模式。";
+    if (mode === "dark") return "当前固定为深色模式。";
+    return "当前跟随系统外观自动切换。";
+  }
+
   function syncReminderStatusText() {
     if (!state.settings.reminders) {
       state.settings.reminders = deepCopy(DEFAULT_REMINDERS);
@@ -5152,6 +5254,7 @@
       slotTemplates: [deepCopy(DATA.slotTemplate)],
       settings: {
         activeSlotTemplateId: DATA.slotTemplate.id,
+        themeMode: "auto",
         reminders: deepCopy(DEFAULT_REMINDERS)
       },
       projects: deepCopy(BUILTIN_PROJECTS),
@@ -5188,6 +5291,9 @@
       slotTemplates,
       settings: {
         activeSlotTemplateId,
+        themeMode: incomingSettings.themeMode === "light" || incomingSettings.themeMode === "dark"
+          ? incomingSettings.themeMode
+          : "auto",
         reminders: {
           enabled: Boolean(incomingReminders.enabled),
           times: {
