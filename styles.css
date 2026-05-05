@@ -1358,7 +1358,7 @@ p {
 }
 
 .input-shell-search input {
-  padding-right: 46px;
+  padding-right: 54px;
 }
 
 .search-input-trigger {
@@ -1372,9 +1372,14 @@ p {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: 24px;
-  block-size: 24px;
+  inline-size: 30px;
+  block-size: 30px;
   cursor: pointer;
+}
+
+.search-input-trigger .icon-lens {
+  inline-size: 22px;
+  block-size: 22px;
 }
 
 .search-input-trigger:active {

@@ -1217,7 +1217,7 @@
             id="recent-search-query"
             type="text"
             autocomplete="off"
-            placeholder="搜索关键词（会匹配标签、备注、事件等）"
+            placeholder="搜索关键词"
             value="${escapeHtml(ui.recentSearch.query)}"
           >
           <button
