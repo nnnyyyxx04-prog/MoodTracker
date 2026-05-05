@@ -1211,45 +1211,40 @@
   function recentSearchHeaderMarkup() {
     const projectOptions = getRecentSearchProjectOptions();
     return `
-      <div class="record-search-head">
-        <button
-          type="button"
-          class="icon-button ${ui.recentSearch.open ? "active" : ""}"
-          data-recent-action="toggle-search"
-          aria-label="${ui.recentSearch.open ? "收起搜索" : "展开搜索"}"
-        >
-          <span class="icon-lens" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <circle cx="11" cy="11" r="6.5"></circle>
-              <path d="M16.2 16.2L21 21"></path>
-            </svg>
-          </span>
-        </button>
-      </div>
-      ${ui.recentSearch.open ? `
-        <div class="record-search-panel">
-          <div class="input-shell">
-            <input
-              id="recent-search-query"
-              type="text"
-              autocomplete="off"
-              placeholder="搜索关键词（会匹配标签、备注、事件等）"
-              value="${escapeHtml(ui.recentSearch.query)}"
-            >
-          </div>
-          <div class="record-search-actions">
-            <select id="recent-search-project" class="reference-select">
-              ${projectOptions.map((option) => `
-                <option value="${escapeHtml(option.id)}" ${ui.recentSearch.projectId === option.id ? "selected" : ""}>${escapeHtml(option.label)}</option>
-              `).join("")}
-            </select>
-            <div class="record-search-action-buttons">
-              <button type="button" class="ghost-button" data-recent-action="clear-search">清空</button>
-              <button type="button" class="ghost-button" data-recent-action="close-search">返回</button>
-            </div>
+      <div class="record-search-panel">
+        <div class="input-shell input-shell-search">
+          <input
+            id="recent-search-query"
+            type="text"
+            autocomplete="off"
+            placeholder="搜索关键词（会匹配标签、备注、事件等）"
+            value="${escapeHtml(ui.recentSearch.query)}"
+          >
+          <button
+            type="button"
+            class="search-input-trigger"
+            data-recent-action="submit-search"
+            aria-label="执行搜索"
+          >
+            <span class="icon-lens" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <circle cx="11" cy="11" r="6.5"></circle>
+                <path d="M16.2 16.2L21 21"></path>
+              </svg>
+            </span>
+          </button>
+        </div>
+        <div class="record-search-actions">
+          <select id="recent-search-project" class="reference-select">
+            ${projectOptions.map((option) => `
+              <option value="${escapeHtml(option.id)}" ${ui.recentSearch.projectId === option.id ? "selected" : ""}>${escapeHtml(option.label)}</option>
+            `).join("")}
+          </select>
+          <div class="record-search-action-buttons">
+            <button type="button" class="ghost-button" data-recent-action="clear-search">清空</button>
           </div>
         </div>
-      ` : ""}
+      </div>
     `;
   }
 
@@ -2968,17 +2963,6 @@
     const actionButton = event.target.closest("[data-recent-action]");
     if (actionButton) {
       const action = actionButton.dataset.recentAction;
-      if (action === "toggle-search") {
-        const nextOpen = !ui.recentSearch.open;
-        ui.recentSearch.open = nextOpen;
-        if (!nextOpen) {
-          ui.recentSearch.query = "";
-          ui.recentSearch.projectId = "";
-        }
-        renderRecentRecords();
-        return;
-      }
-
       if (action === "clear-search") {
         ui.recentSearch.query = "";
         ui.recentSearch.projectId = "";
@@ -2986,11 +2970,8 @@
         return;
       }
 
-      if (action === "close-search") {
-        ui.recentSearch.open = false;
-        ui.recentSearch.query = "";
-        ui.recentSearch.projectId = "";
-        renderRecentRecords();
+      if (action === "submit-search") {
+        renderRecentSearchResults();
         return;
       }
 
@@ -3096,6 +3077,12 @@
   }
 
   function onRecentRecordsKeydown(event) {
+    if (event.target && event.target.id === "recent-search-query" && event.key === "Enter") {
+      event.preventDefault();
+      renderRecentSearchResults();
+      return;
+    }
+
     const draft = ui.recentEditor;
     if (!draft || event.key !== "Enter") return;
 
@@ -6265,7 +6252,6 @@
         preview: ""
       },
       recentSearch: {
-        open: false,
         query: "",
         projectId: ""
       },

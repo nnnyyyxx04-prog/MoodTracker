@@ -1327,35 +1327,6 @@ p {
   white-space: pre-line;
 }
 
-.record-search-head {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.record-search-head h3 {
-  font-size: 26px;
-}
-
-.icon-button {
-  inline-size: 36px;
-  min-width: 36px;
-  padding: 0;
-  justify-content: center;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  color: var(--muted);
-}
-
-.icon-button.active {
-  color: var(--ink);
-  background: transparent;
-  border-color: transparent;
-}
-
 .icon-lens {
   display: inline-flex;
   inline-size: 18px;
@@ -1380,6 +1351,34 @@ p {
   border-radius: 16px;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
+}
+
+.input-shell-search {
+  position: relative;
+}
+
+.input-shell-search input {
+  padding-right: 46px;
+}
+
+.search-input-trigger {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 24px;
+  block-size: 24px;
+  cursor: pointer;
+}
+
+.search-input-trigger:active {
+  color: var(--ink);
 }
 
 .record-search-actions {
@@ -1841,10 +1840,6 @@ html[data-theme="dark"] .donut-chart.empty {
   .record-header {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
-  }
-
-  .record-search-head h3 {
-    font-size: 24px;
   }
 
   .hero-stats,
