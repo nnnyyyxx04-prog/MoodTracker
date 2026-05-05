@@ -1255,6 +1255,7 @@ p {
 .record-body {
   color: var(--ink);
   line-height: 1.72;
+  white-space: pre-line;
 }
 
 .record-entry-list,
@@ -1311,6 +1312,7 @@ p {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
+  white-space: pre-line;
 }
 
 .recent-editor-shell {
