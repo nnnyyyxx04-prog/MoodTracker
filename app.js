@@ -1196,7 +1196,7 @@
 
     const recent = [...state.records]
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-      .slice(0, 50);
+      ;
 
     els.recentRecords.innerHTML = `
       ${recentSearchHeaderMarkup()}
@@ -1214,7 +1214,7 @@
             id="recent-search-query"
             type="text"
             autocomplete="off"
-            placeholder="搜索关键词"
+            placeholder="搜索关键词（可用 ; 分隔多个关键词）"
             value="${escapeHtml(ui.recentSearch.query)}"
           >
           <button
@@ -1246,14 +1246,17 @@
   }
 
   function renderRecentSearchResults(preloadedRecent) {
-    const recent = Array.isArray(preloadedRecent)
+    const allRecent = Array.isArray(preloadedRecent)
       ? preloadedRecent
       : [...state.records]
-        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-        .slice(0, 50);
+        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+
+    const hasFilters = hasRecentSearchFilters();
+    const recent = hasFilters ? allRecent : allRecent.slice(0, 15);
+    const highlightTerms = getRecentSearchHighlightTerms();
 
     const filteredRecent = filterRecentRecords(recent);
-    const resultMeta = buildRecentSearchMeta(recent.length, filteredRecent.length);
+    const resultMeta = buildRecentSearchMeta(allRecent.length, filteredRecent.length);
     const cards = filteredRecent.map((record) => `
       <article class="record-card">
         <div class="record-header">
@@ -1268,9 +1271,9 @@
             data-record-id="${record.id}"
           >编辑</button>
         </div>
-        ${recordBodyMarkup(record)}
+        ${recordBodyMarkup(record, highlightTerms)}
         <div class="record-entry-list">
-          ${record.projectEntries.map((entry) => recordEntryMarkup(entry)).join("")}
+          ${record.projectEntries.map((entry) => recordEntryMarkup(entry, highlightTerms)).join("")}
         </div>
       </article>
     `).join("");
@@ -1301,16 +1304,52 @@
     return options;
   }
 
+  function hasRecentSearchFilters() {
+    return getRecentSearchTerms().length > 0 || Boolean(ui.recentSearch.projectId);
+  }
+
+  function getRecentSearchTerms() {
+    const query = String(ui.recentSearch.query || "");
+    const seen = new Set();
+    return query
+      .split(";")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean)
+      .filter((item) => {
+        if (seen.has(item)) return false;
+        seen.add(item);
+        return true;
+      });
+  }
+
+  function getRecentSearchHighlightTerms() {
+    const query = String(ui.recentSearch.query || "");
+    const seen = new Set();
+    return query
+      .split(";")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .filter((item) => {
+        const key = item.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => b.length - a.length)
+      .slice(0, 8);
+  }
+
   function filterRecentRecords(records) {
-    const query = String(ui.recentSearch.query || "").trim().toLowerCase();
+    const terms = getRecentSearchTerms();
     const projectId = ui.recentSearch.projectId || "";
 
     return records.filter((record) => {
       if (projectId && !record.projectEntries.some((entry) => entry.projectId === projectId)) {
         return false;
       }
-      if (!query) return true;
-      return buildRecentSearchText(record).includes(query);
+      if (!terms.length) return true;
+      const text = buildRecentSearchText(record);
+      return terms.every((term) => text.includes(term));
     });
   }
 
@@ -1334,7 +1373,7 @@
   }
 
   function buildRecentSearchMeta(total, matched) {
-    if (!ui.recentSearch.query.trim() && !ui.recentSearch.projectId) return "";
+    if (!hasRecentSearchFilters()) return "";
     return `匹配 ${matched} / ${total} 条`;
   }
 
@@ -2823,7 +2862,20 @@
     `;
   }
 
-  function recordBodyMarkup(record) {
+  function highlightSearchText(text, terms) {
+    const source = String(text || "");
+    if (!terms || !terms.length) return escapeHtml(source);
+
+    let output = escapeHtml(source);
+    terms.forEach((term) => {
+      const escapedTerm = escapeHtml(term);
+      const pattern = escapedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      output = output.replace(new RegExp(pattern, "gi"), (match) => `<mark class="search-hit">${match}</mark>`);
+    });
+    return output;
+  }
+
+  function recordBodyMarkup(record, highlightTerms) {
     const lines = [];
 
     if (record.bodyAreas && record.bodyAreas.length) {
@@ -2844,27 +2896,27 @@
 
     if (!lines.length) return "";
 
-    return `<div class="record-body">${lines.map((line) => escapeHtml(line)).join("<br>")}</div>`;
+    return `<div class="record-body">${lines.map((line) => highlightSearchText(line, highlightTerms)).join("<br>")}</div>`;
   }
 
-  function recordEntryMarkup(entry) {
+  function recordEntryMarkup(entry, highlightTerms) {
     const project = getProject(entry.projectId);
     const projectColor = entry.projectColor || (project && project.color) || "#4f8f8b";
     return `
       <div class="record-entry">
         <div class="record-entry-project" style="--project-color:${safeColor(projectColor)}">
           <span class="record-entry-accent"></span>
-          <span>${escapeHtml(entry.projectName)}</span>
+          <span>${highlightSearchText(entry.projectName, highlightTerms)}</span>
         </div>
         <div class="record-badges">
           ${(entry.entries || []).map((item) => `
             <span class="tag-badge">
               <span class="tag-dot" style="--dot-color:${safeColor(item.color || projectColor)}"></span>
-              <span>${escapeHtml(item.label)}${item.intensity ? ` · ${item.intensity}` : ""}</span>
+              <span>${highlightSearchText(item.label, highlightTerms)}${item.intensity ? ` · ${item.intensity}` : ""}</span>
             </span>
           `).join("")}
         </div>
-        ${entry.note ? `<div class="record-entry-note">${escapeHtml(entry.note)}</div>` : ""}
+        ${entry.note ? `<div class="record-entry-note">${highlightSearchText(entry.note, highlightTerms)}</div>` : ""}
       </div>
     `;
   }

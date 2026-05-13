@@ -1414,6 +1414,13 @@ p {
   line-height: 1.5;
 }
 
+.search-hit {
+  background: #f3e7c9;
+  color: inherit;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
 .recent-editor-shell {
   display: grid;
   gap: 18px;
