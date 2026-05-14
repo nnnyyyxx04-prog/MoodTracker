@@ -1706,6 +1706,8 @@
   function settingsMarkersMarkup() {
     const markers = getRecordMarkers();
     const draft = ui.settings.drafts.marker;
+    const editingId = ui.settings.markerEditingId || "";
+    const deleteConfirmId = ui.settings.markerDeleteConfirmId || "";
     return settingsShellMarkup({
       eyebrow: "标记",
       title: "记录标记",
@@ -1732,17 +1734,53 @@
         <div class="manager-list">
           ${markers.map((marker) => `
             <div class="manager-row">
-              <div class="manager-copy">
-                <strong>${escapeHtml(marker.short)} · ${escapeHtml(marker.label)}</strong>
-              </div>
-              <div class="manager-actions">
-                <button
-                  class="ghost-button"
-                  type="button"
-                  data-settings-action="delete-marker"
-                  data-marker-id="${marker.id}"
-                >删除</button>
-              </div>
+              ${editingId === marker.id ? `
+                <div class="manager-copy" style="width:100%;">
+                  <div class="input-grid two-up">
+                    <input
+                      type="text"
+                      maxlength="2"
+                      value="${escapeHtml(ui.settings.markerEditDraft.short)}"
+                      data-settings-marker-field="short"
+                      data-marker-id="${marker.id}"
+                    >
+                    <input
+                      type="text"
+                      maxlength="24"
+                      value="${escapeHtml(ui.settings.markerEditDraft.label)}"
+                      data-settings-marker-field="label"
+                      data-marker-id="${marker.id}"
+                    >
+                  </div>
+                  <div class="button-row">
+                    <button class="secondary-button" type="button" data-settings-action="save-marker" data-marker-id="${marker.id}">保存</button>
+                    <button class="ghost-button" type="button" data-settings-action="cancel-edit-marker">取消</button>
+                  </div>
+                </div>
+              ` : `
+                <div class="manager-copy">
+                  <strong>${escapeHtml(marker.short)} · ${escapeHtml(marker.label)}</strong>
+                </div>
+                <div class="manager-actions">
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    data-settings-action="edit-marker"
+                    data-marker-id="${marker.id}"
+                  >修改</button>
+                  ${deleteConfirmId === marker.id ? `
+                    <button class="danger-button" type="button" data-settings-action="confirm-delete-marker" data-marker-id="${marker.id}">确认删除</button>
+                    <button class="ghost-button" type="button" data-settings-action="cancel-delete-marker">取消</button>
+                  ` : `
+                    <button
+                      class="ghost-button"
+                      type="button"
+                      data-settings-action="request-delete-marker"
+                      data-marker-id="${marker.id}"
+                    >删除</button>
+                  `}
+                </div>
+              `}
             </div>
           `).join("")}
         </div>
@@ -3700,7 +3738,34 @@
       return;
     }
 
-    if (action === "delete-marker") {
+    if (action === "edit-marker") {
+      startEditMarkerFromSettings(actionButton.dataset.markerId);
+      return;
+    }
+
+    if (action === "cancel-edit-marker") {
+      cancelEditMarkerFromSettings();
+      return;
+    }
+
+    if (action === "save-marker") {
+      saveEditMarkerFromSettings(actionButton.dataset.markerId);
+      return;
+    }
+
+    if (action === "request-delete-marker") {
+      ui.settings.markerDeleteConfirmId = actionButton.dataset.markerId || "";
+      renderSettings();
+      return;
+    }
+
+    if (action === "cancel-delete-marker") {
+      ui.settings.markerDeleteConfirmId = "";
+      renderSettings();
+      return;
+    }
+
+    if (action === "confirm-delete-marker") {
       deleteRecordMarkerFromSettings(actionButton.dataset.markerId);
       return;
     }
@@ -3841,6 +3906,16 @@
 
     if (target.id === "marker-label") {
       ui.settings.drafts.marker.label = target.value;
+      return;
+    }
+
+    if (target.dataset.settingsMarkerField === "short") {
+      ui.settings.markerEditDraft.short = target.value;
+      return;
+    }
+
+    if (target.dataset.settingsMarkerField === "label") {
+      ui.settings.markerEditDraft.label = target.value;
       return;
     }
 
@@ -4546,6 +4621,59 @@
     toast("标记已添加。");
   }
 
+  function startEditMarkerFromSettings(markerId) {
+    const marker = getRecordMarkers().find((item) => item.id === markerId);
+    if (!marker) return;
+    ui.settings.markerEditingId = marker.id;
+    ui.settings.markerDeleteConfirmId = "";
+    ui.settings.markerEditDraft = {
+      short: marker.short,
+      label: marker.label
+    };
+    renderSettings();
+  }
+
+  function cancelEditMarkerFromSettings() {
+    ui.settings.markerEditingId = "";
+    ui.settings.markerEditDraft = { short: "", label: "" };
+    renderSettings();
+  }
+
+  function saveEditMarkerFromSettings(markerId) {
+    const markers = getRecordMarkers();
+    const marker = markers.find((item) => item.id === markerId);
+    if (!marker) return;
+
+    const short = sanitizeMarkerShort(ui.settings.markerEditDraft.short);
+    const label = String(ui.settings.markerEditDraft.label || "").trim();
+    if (!short) {
+      toast("先填写标记简称。");
+      return;
+    }
+    if (!label) {
+      toast("先填写标记说明。");
+      return;
+    }
+
+    const duplicate = markers.find((item) => (
+      item.id !== markerId
+      && (normalizeLabel(item.short) === normalizeLabel(short) || normalizeLabel(item.label) === normalizeLabel(label))
+    ));
+    if (duplicate) {
+      toast("已存在相同标记，请换一个。");
+      return;
+    }
+
+    marker.short = short;
+    marker.label = label;
+    state.settings.recordMarkers = normalizeRecordMarkers(markers);
+    ui.settings.markerEditingId = "";
+    ui.settings.markerEditDraft = { short: "", label: "" };
+    saveState();
+    renderApp();
+    toast("标记已更新。");
+  }
+
   function deleteRecordMarkerFromSettings(markerId) {
     const markers = getRecordMarkers();
     if (markers.length <= 1) {
@@ -4561,6 +4689,11 @@
     if (ui.recentSearch.markerId === markerId) {
       ui.recentSearch.markerId = "";
     }
+    if (ui.settings.markerEditingId === markerId) {
+      ui.settings.markerEditingId = "";
+      ui.settings.markerEditDraft = { short: "", label: "" };
+    }
+    ui.settings.markerDeleteConfirmId = "";
     saveState();
     renderApp();
     toast("标记已删除。");
@@ -4571,6 +4704,9 @@
     ui.quick.selectedMarkerIds = [];
     ui.recentSearch.markerId = "";
     ui.settings.drafts.marker = { short: "", label: "" };
+    ui.settings.markerEditingId = "";
+    ui.settings.markerEditDraft = { short: "", label: "" };
+    ui.settings.markerDeleteConfirmId = "";
     saveState();
     renderApp();
     toast("已恢复默认标记。");
@@ -6571,6 +6707,12 @@
         libraryTab: "emotion",
         projectId: "",
         drafts: createInitialSettingsDrafts(),
+        markerEditingId: "",
+        markerEditDraft: {
+          short: "",
+          label: ""
+        },
+        markerDeleteConfirmId: "",
         backupStatus: "",
         pendingImport: null,
         backupImportText: ""
