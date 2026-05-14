@@ -55,6 +55,10 @@
   const BACKUP_TEXT_START_MARKER = "---- LUMEVA BACKUP DATA START ----";
   const BACKUP_TEXT_END_MARKER = "---- LUMEVA BACKUP DATA END ----";
   const NATIVE_SHADOW_BACKUP_PATH = "backups/app-state-backup.json";
+  const NOTE_MARKERS = [
+    { id: "doctor", short: "医", label: "想给医生看" },
+    { id: "counselor", short: "询", label: "想给咨询师看" }
+  ];
   const bootState = {
     hadLocalState: false,
     localStateError: false
@@ -108,6 +112,7 @@
     els.quickIntensity = document.getElementById("quick-intensity");
     els.quickIntensityLabel = document.getElementById("quick-intensity-label");
     els.quickNote = document.getElementById("quick-note");
+    els.quickNoteFlags = document.getElementById("quick-note-flags");
     els.saveQuickBtn = document.getElementById("save-quick-btn");
 
     els.otherRecordsSelected = document.getElementById("other-records-selected");
@@ -203,6 +208,9 @@
     els.quickNote.addEventListener("input", (event) => {
       ui.quick.note = event.target.value;
     });
+    if (els.quickNoteFlags) {
+      els.quickNoteFlags.addEventListener("click", onQuickNoteFlagClick);
+    }
 
     els.saveQuickBtn.addEventListener("click", saveQuickRecord);
 
@@ -358,6 +366,7 @@
       els.quickIntensity.value = String(ui.quick.intensity);
     }
     els.quickNote.value = ui.quick.note;
+    renderQuickNoteFlags();
 
     renderQuickIntensityLabel();
     renderQuickSelectedStrips();
@@ -433,6 +442,23 @@
 
   function renderQuickSomaticCreator() {
     renderInlineCreator(els.quickSomaticCreator, "quick-somatic", getCreatorDraft("quick-somatic"));
+  }
+
+  function renderQuickNoteFlags() {
+    if (!els.quickNoteFlags) return;
+    const selected = Array.isArray(ui.quick.selectedMarkerIds) ? ui.quick.selectedMarkerIds : [];
+    els.quickNoteFlags.innerHTML = NOTE_MARKERS.map((marker) => {
+      const active = selected.includes(marker.id);
+      return `
+        <button
+          type="button"
+          class="note-flag-chip ${active ? "is-active" : ""}"
+          data-quick-marker-id="${marker.id}"
+          aria-pressed="${active ? "true" : "false"}"
+          title="${escapeHtml(marker.label)}"
+        >${escapeHtml(marker.short)}</button>
+      `;
+    }).join("");
   }
 
   function renderOtherProjectInputs() {
@@ -1207,6 +1233,7 @@
 
   function recentSearchHeaderMarkup() {
     const projectOptions = getRecentSearchProjectOptions();
+    const markerOptions = getRecentSearchMarkerOptions();
     return `
       <div class="record-search-panel">
         <div class="input-shell input-shell-search">
@@ -1235,6 +1262,11 @@
           <select id="recent-search-project" class="reference-select">
             ${projectOptions.map((option) => `
               <option value="${escapeHtml(option.id)}" ${ui.recentSearch.projectId === option.id ? "selected" : ""}>${escapeHtml(option.label)}</option>
+            `).join("")}
+          </select>
+          <select id="recent-search-marker" class="reference-select">
+            ${markerOptions.map((option) => `
+              <option value="${escapeHtml(option.id)}" ${ui.recentSearch.markerId === option.id ? "selected" : ""}>${escapeHtml(option.label)}</option>
             `).join("")}
           </select>
           <div class="record-search-action-buttons">
@@ -1304,8 +1336,24 @@
     return options;
   }
 
+  function getRecentSearchMarkerOptions() {
+    const options = [{ id: "", label: "全部标记" }];
+    NOTE_MARKERS.forEach((marker) => {
+      options.push({ id: marker.id, label: marker.short });
+    });
+    if (hasCustomRecordMarkers()) {
+      options.push({ id: "__custom__", label: "其他自定义" });
+    }
+    return options;
+  }
+
+  function hasCustomRecordMarkers() {
+    const builtins = new Set(NOTE_MARKERS.map((item) => item.id));
+    return state.records.some((record) => (record.flags || []).some((flag) => !builtins.has(flag)));
+  }
+
   function hasRecentSearchFilters() {
-    return getRecentSearchTerms().length > 0 || Boolean(ui.recentSearch.projectId);
+    return getRecentSearchTerms().length > 0 || Boolean(ui.recentSearch.projectId) || Boolean(ui.recentSearch.markerId);
   }
 
   function getRecentSearchTerms() {
@@ -1342,9 +1390,18 @@
   function filterRecentRecords(records) {
     const terms = getRecentSearchTerms();
     const projectId = ui.recentSearch.projectId || "";
+    const markerId = ui.recentSearch.markerId || "";
+    const builtins = new Set(NOTE_MARKERS.map((item) => item.id));
 
     return records.filter((record) => {
       if (projectId && !record.projectEntries.some((entry) => entry.projectId === projectId)) {
+        return false;
+      }
+      if (markerId === "__custom__") {
+        if (!(record.flags || []).some((flag) => !builtins.has(flag))) {
+          return false;
+        }
+      } else if (markerId && !(record.flags || []).includes(markerId)) {
         return false;
       }
       if (!terms.length) return true;
@@ -1354,12 +1411,17 @@
   }
 
   function buildRecentSearchText(record) {
+    const markerLabels = (record.flags || []).map((flag) => {
+      const builtIn = NOTE_MARKERS.find((item) => item.id === flag);
+      return builtIn ? `${builtIn.short} ${builtIn.label}` : flag;
+    });
     const chunks = [
       sourceLabel(record.source),
       record.note || "",
       record.eventText || "",
       record.childhoodEcho || "",
-      ...(record.bodyAreas || [])
+      ...(record.bodyAreas || []),
+      ...markerLabels
     ];
 
     (record.projectEntries || []).forEach((entry) => {
@@ -2939,6 +3001,15 @@
     renderQuickSomaticSuggestions();
   }
 
+  function onQuickNoteFlagClick(event) {
+    const button = event.target.closest("[data-quick-marker-id]");
+    if (!button) return;
+    const markerId = String(button.dataset.quickMarkerId || "");
+    if (!markerId) return;
+    toggleInArray(ui.quick.selectedMarkerIds, markerId);
+    renderQuickNoteFlags();
+  }
+
   function onOtherRecordStripClick(event) {
     const applyButton = event.target.closest("[data-action='apply-other-pair']");
     if (!applyButton) return;
@@ -3003,6 +3074,7 @@
       if (action === "clear-search") {
         ui.recentSearch.query = "";
         ui.recentSearch.projectId = "";
+        ui.recentSearch.markerId = "";
         renderRecentRecords();
         return;
       }
@@ -3101,6 +3173,11 @@
 
     if (event.target.id === "recent-search-project") {
       ui.recentSearch.projectId = event.target.value || "";
+      renderRecentSearchResults();
+      return;
+    }
+    if (event.target.id === "recent-search-marker") {
+      ui.recentSearch.markerId = event.target.value || "";
       renderRecentSearchResults();
       return;
     }
@@ -4095,6 +4172,9 @@
 
     const record = createRecordBase("quick");
     record.note = note;
+    record.flags = Array.isArray(ui.quick.selectedMarkerIds)
+      ? [...new Set(ui.quick.selectedMarkerIds.filter(Boolean))]
+      : [];
 
     if (emotionEntries.length) {
       record.projectEntries.push({
@@ -4126,7 +4206,8 @@
       selectedEmotionIds: [],
       selectedSomaticIds: [],
       intensity: 3,
-      note: ""
+      note: "",
+      selectedMarkerIds: []
     };
     renderApp();
     toast("这次快速记录已经保存");
@@ -6137,6 +6218,9 @@
         slotName,
         source: record.source || "quick",
         note: String(record.note || ""),
+        flags: Array.isArray(record.flags)
+          ? [...new Set(record.flags.map((item) => String(item || "").trim()).filter(Boolean))]
+          : [],
         eventText: String(record.eventText || ""),
         childhoodEcho: String(record.childhoodEcho || ""),
         bodyAreas: Array.isArray(record.bodyAreas) ? [...new Set(record.bodyAreas)] : [],
@@ -6287,7 +6371,8 @@
         selectedEmotionIds: [],
         selectedSomaticIds: [],
         intensity: 3,
-        note: ""
+        note: "",
+        selectedMarkerIds: []
       },
       other: {
         projectQuery: "",
@@ -6315,7 +6400,8 @@
       },
       recentSearch: {
         query: "",
-        projectId: ""
+        projectId: "",
+        markerId: ""
       },
       recentEditor: null,
       toastTimer: null
@@ -6497,6 +6583,7 @@
       slotName: slot.name,
       source,
       note: "",
+      flags: [],
       eventText: "",
       childhoodEcho: "",
       bodyAreas: [],
@@ -6954,6 +7041,7 @@
       day: record.day || "",
       source: record.source || "",
       note: String(record.note || "").trim(),
+      flags: [...new Set((record.flags || []).map((item) => String(item || "").trim()).filter(Boolean))].sort(),
       eventText: String(record.eventText || "").trim(),
       childhoodEcho: String(record.childhoodEcho || "").trim(),
       bodyAreas: [...new Set(record.bodyAreas || [])].sort(),

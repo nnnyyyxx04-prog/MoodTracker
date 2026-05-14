@@ -1388,7 +1388,7 @@ p {
 
 .record-search-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr) auto;
   gap: 8px;
   align-items: center;
 }
@@ -1405,6 +1405,43 @@ p {
 .record-search-actions .ghost-button {
   min-height: 42px;
   padding-inline: 14px;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.note-flags-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.note-flag-chip {
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  border-radius: 999px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.note-flag-chip.is-active {
+  background: rgba(213, 120, 84, 0.2);
+  color: var(--ink);
+  border-color: rgba(213, 120, 84, 0.5);
 }
 
 .record-search-meta {
